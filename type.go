@@ -1,13 +1,17 @@
 package raft
 
-type NodeRole int
+type Role int
 
 const (
-	Candidate NodeRole = iota
-	Follower
+	Follower Role = iota
+	Candidate
 	Leader
 )
 
 type NodeId string
 
 type Term int
+
+func (t Term) NotEarlierThan(t2 Term) bool {
+	return t >= t2
+}

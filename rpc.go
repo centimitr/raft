@@ -14,7 +14,17 @@ type AppendEntriesReply struct {
 	Success bool
 }
 
-func (s *State) AppendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) error {
+func (r *Raft) AppendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) error {
+	reply.Term = r.CurrentTerm
+	if r.Election.Processing {
+		if arg.Term.NotEarlierThan(r.CurrentTerm) {
+			r.Election.Abandon()
+		} else {
+			reply.Success = false
+		}
+	}
+	// validity
+	r.Election.ResetTimer()
 	return nil
 }
 
@@ -30,6 +40,8 @@ type RequestVotesReply struct {
 	VoteGranted bool
 }
 
-func (s *State) RequestVotes(arg RequestVotesArg, reply *AppendEntriesReply) error {
+func (r *Raft) RequestVotes(arg RequestVotesArg, reply *AppendEntriesReply) error {
+	// validity
+	r.Election.ResetTimer()
 	return nil
 }

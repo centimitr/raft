@@ -6,7 +6,7 @@ type LeaderState struct {
 }
 
 type State struct {
-	Role NodeRole
+	Role Role
 
 	CurrentTerm Term
 	VotedFor    NodeId
@@ -16,4 +16,8 @@ type State struct {
 	LastApplied LogEntryId
 
 	*LeaderState
+}
+
+func NewState() *State {
+	return new(State)
 }
