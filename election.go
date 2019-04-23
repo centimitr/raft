@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -9,30 +10,6 @@ var (
 	ElectionTimeout = 2 * time.Second
 	VotingTimeout   = 2 * time.Second
 )
-
-type Voting struct {
-	Done    chan struct{}
-	Timeout chan struct{}
-	Cancel  chan struct{}
-}
-
-func (v *Voting) Request() {
-	v.Done = make(chan struct{})
-	v.Timeout = make(chan struct{})
-	v.Cancel = make(chan struct{})
-	time.AfterFunc(VotingTimeout, func() {
-		close(v.Timeout)
-	})
-
-	var wg sync.WaitGroup
-	// request votes
-	wg.Wait()
-	close(v.Done)
-}
-
-func (v *Voting) Win() bool {
-	return false
-}
 
 type Election struct {
 	state      *State
@@ -66,17 +43,18 @@ func (e *Election) announceBeingLeader() {
 	wg.Wait()
 }
 
+// randomElectionInterval returns a time duration between 150~300ms
 func randomElectionInterval() time.Duration {
-	// 150 - 300
-	return 250 * time.Millisecond
+	s := rand.NewSource(time.Now().UnixNano())
+	r := rand.New(s)
+	return time.Duration(150+r.Intn(150)) * time.Millisecond
 }
 
 func (e *Election) Start() {
-	e.Processing = true
 	log("elect!")
+	e.Processing = true
 	e.state.CurrentTerm++
 	e.state.Role = Candidate
-
 	v := new(Voting)
 	e.voting = v
 	go v.Request()

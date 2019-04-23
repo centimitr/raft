@@ -1,20 +1,41 @@
 package raft
 
+const (
+	DefaultRPCAddr = ":3456"
+)
+
+type Config struct {
+	RPCAddr string
+}
+
 type Raft struct {
 	*State
-	Election *Election
-	Quit     chan struct{}
+	Config       *Config
+	Connectivity *Connectivity
+	Election     *Election
+	Quit         chan struct{}
 }
 
-func New() *Raft {
-	return new(Raft).Init()
+func New(c Config) *Raft {
+	return new(Raft).Init(&c)
 }
 
-func (r *Raft) Init() *Raft {
+func (r *Raft) Init(c *Config) *Raft {
 	r.State = NewState()
+	r.Config = c
+	r.Connectivity = NewConnectivity()
 	r.Election = NewElection(r.State)
 	r.Quit = make(chan struct{})
 	return r
+}
+
+func (r *Raft) SetupConnectivity(peerAddrs []string, onPeerConnectError OnError) (err error) {
+	err = r.Connectivity.ListenAndServe(r, DefaultString(r.Config.RPCAddr, DefaultRPCAddr))
+	if err != nil {
+		return
+	}
+	go r.Connectivity.ConnectPeers(peerAddrs, onPeerConnectError)
+	return
 }
 
 func (r *Raft) Run() {
