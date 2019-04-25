@@ -1,23 +1,30 @@
 package raft
 
+import "sync"
+
 type LeaderState struct {
-	NextIndex  []LogEntryId
-	MatchIndex []LogEntryId
+	NextIndex  []LogEntryIndex
+	MatchIndex []LogEntryIndex
 }
 
 type State struct {
 	Role Role
+	Id   NodeId
 
 	CurrentTerm Term
 	VotedFor    NodeId
 	Log         Log
 
-	CommitIndex LogEntryId
-	LastApplied LogEntryId
+	CommitIndex LogEntryIndex
+	LastApplied LogEntryIndex
 
 	*LeaderState
+
+	mutex sync.RWMutex
 }
 
 func NewState() *State {
-	return new(State)
+	s := new(State)
+	s.Id = NewNodeId()
+	return s
 }
