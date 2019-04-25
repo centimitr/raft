@@ -1,10 +1,17 @@
 package main
 
-import "log"
+import (
+	"log"
+	"strings"
+)
 
-func check(err error) bool {
+func check(err error, vs ...string) bool {
 	if err != nil {
-		log.Println(err)
+		if len(vs) > 0 {
+			log.Println(strings.Join(vs, ": ")+":", err)
+		} else {
+			log.Println(err)
+		}
 		return true
 	} else {
 		return false

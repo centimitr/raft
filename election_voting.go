@@ -1,30 +1,51 @@
 package raft
 
 import (
-	"sync"
 	"time"
 )
 
 type Voting struct {
-	Done    chan struct{}
-	Timeout chan struct{}
-	Cancel  chan struct{}
+	total             int
+	approves, rejects int
+	Done              chan struct{}
+	Timeout           chan struct{}
+	Cancel            chan struct{}
 }
 
-func (v *Voting) Request() {
+func (v *Voting) Start(total int) {
 	v.Done = make(chan struct{})
 	v.Timeout = make(chan struct{})
 	v.Cancel = make(chan struct{})
 	time.AfterFunc(VotingTimeout, func() {
 		close(v.Timeout)
 	})
+	v.total = total
+	v.approves, v.rejects = 0, 0
+}
 
-	var wg sync.WaitGroup
-	// request votes
-	wg.Wait()
-	close(v.Done)
+func (v *Voting) checkDone() {
+	if v.approves+v.rejects >= v.total {
+		close(v.Done)
+	}
+}
+
+func (v *Voting) Approve() {
+	v.approves++
+	v.checkDone()
+}
+
+func (v *Voting) Reject() {
+	v.rejects++
+	v.checkDone()
+}
+
+func (v *Voting) Fail(err error) {
+	// todo: may change log solution
+	log("voting: fail:", err)
+	v.total--
+	v.checkDone()
 }
 
 func (v *Voting) Win() bool {
-	return false
+	return v.approves*2 > v.total
 }

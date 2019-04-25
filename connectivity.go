@@ -7,7 +7,7 @@ import (
 )
 
 type Connectivity struct {
-	Peers []*rpc.Client
+	Peers    []*rpc.Client
 	listener net.Listener
 }
 
@@ -15,13 +15,13 @@ func NewConnectivity() *Connectivity {
 	return new(Connectivity)
 }
 
-func (c *Connectivity) ListenAndServe(v interface{}, addr string) (err error) {
+func (c *Connectivity) ListenAndServe(serviceName string, v interface{}, addr string) (err error) {
 	if c.listener != nil {
 		_ = c.listener.Close()
 		c.listener = nil
 	}
 	s := rpc.NewServer()
-	err = s.Register(v)
+	err = s.RegisterName(serviceName, v)
 	if err != nil {
 		return
 	}
@@ -55,11 +55,4 @@ func (c *Connectivity) ConnectPeers(addrs []string, onError OnError) {
 //		err := fn(p)
 //		onError.Check(err)
 //	}
-//}
-
-//
-//func (c *Connectivity) Run(v interface{}, addr string, peerAddrs []string, onError OnError) {
-//	err := c.ListenAndServe(v, addr)
-//	onError.Check(err)
-//	c.ConnectPeers(peerAddrs, onError)
 //}
