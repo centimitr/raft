@@ -37,6 +37,7 @@ func (r *Raft) Init(c *Config) *Raft {
 
 func (r *Raft) BindStateMachine(stateMachine StateMachine) {
 	r.Log = NewLog(stateMachine)
+	stateMachine.Delegate(r)
 }
 
 func (r *Raft) SetupConnectivity(peerAddrs []string, onPeerConnectError OnError) (err error) {
@@ -52,7 +53,6 @@ func (r *Raft) Run() {
 	if r.Log == nil {
 		panic("raft: must bind a state machine before run")
 	}
-	r.Log.Run()
 	r.Election.Init()
 	for {
 		select {
@@ -65,8 +65,7 @@ func (r *Raft) Run() {
 }
 
 func (r *Raft) Apply(command interface{}) (err error) {
-	c := Command(command)
-	err = r.Log.Append(r.CurrentTerm, c)
+	err = r.Log.Append(r.CurrentTerm, command)
 	if err != nil {
 		return
 	}

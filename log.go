@@ -1,9 +1,14 @@
 package raft
 
-type Command interface{}
+import "sync"
+
+type StateMachineDelegate interface {
+	Apply(cmd interface{}) error
+}
 
 type StateMachine interface {
-	Apply(cmd Command)
+	Apply(cmd interface{})
+	Delegate(delegate StateMachineDelegate)
 }
 
 type LogEntryIndex int
@@ -11,10 +16,10 @@ type LogEntryIndex int
 type LogEntry struct {
 	Index   LogEntryIndex
 	Term    Term
-	Command Command
+	Command interface{}
 }
 
-func newLogEntry(l *Log, term Term, cmd Command) *LogEntry {
+func newLogEntry(l *Log, term Term, cmd interface{}) *LogEntry {
 	return &LogEntry{
 		Index:   LogEntryIndex(len(l.Entries) + 1),
 		Term:    term,
@@ -27,27 +32,27 @@ type Log struct {
 	CommitIndex LogEntryIndex
 	LastApplied LogEntryIndex
 
+	mutex sync.RWMutex
 	sm    StateMachine
-	apply chan LogEntry
 }
 
 func NewLog(stateMachine StateMachine) *Log {
 	return &Log{
-		sm:    stateMachine,
-		apply: make(chan LogEntry),
+		sm: stateMachine,
 	}
 }
 
-func (l *Log) Run() () {
-	go func() {
-		for entry := range l.apply {
-			l.sm.Apply(entry.Command)
-			l.LastApplied = entry.Index
-		}
-	}()
-}
+//func (l *Log) Run() () {
+//	go func() {
+//		for entry := range l.apply {
+//			l.sm.Apply(entry.Command)
+//			l.LastApplied = entry.Index
+//		}
+//	}()
+//}
 
-func (l *Log) Append(term Term, cmd Command) (err error) {
+func (l *Log) Append(term Term, cmd interface{}) (err error) {
+	l.mutex.Lock()
 	e := newLogEntry(l, term, cmd)
 	// todo: save disk or make entries stable, committed
 	l.Entries = append(l.Entries, e)
@@ -56,8 +61,8 @@ func (l *Log) Append(term Term, cmd Command) (err error) {
 	//	return
 	//}
 	l.CommitIndex = e.Index
-	go func() {
-		l.apply <- *e
-	}()
+	l.sm.Apply(e.Command)
+	l.LastApplied = e.Index
+	l.mutex.Unlock()
 	return
 }

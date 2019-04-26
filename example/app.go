@@ -33,7 +33,7 @@ func peersUpdate(addrs *[]string) (r *ssdr.RegistryClient, err error) {
 	return
 }
 
-func main() {
+func app() {
 	var peerAddrs []string
 	_, err := peersUpdate(&peerAddrs)
 	if check(err, "service discovery") {
@@ -47,8 +47,8 @@ func main() {
 		return
 	}
 
-	sm := new(StateMachine)
-	r.BindStateMachine(sm)
+	kv := new(raft.KV)
+	r.BindStateMachine(kv)
 	go r.Run()
 
 	err = http.ListenAndServe(":0", nil)
