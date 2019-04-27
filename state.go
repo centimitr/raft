@@ -13,11 +13,8 @@ type State struct {
 
 	CurrentTerm Term
 	VotedFor    NodeId
-	Log         Log
 
-	CommitIndex LogEntryIndex
-	LastApplied LogEntryIndex
-
+	*Log
 	*LeaderState
 
 	mutex sync.RWMutex

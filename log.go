@@ -42,16 +42,17 @@ func NewLog(stateMachine StateMachine) *Log {
 	}
 }
 
-//func (l *Log) Run() () {
-//	go func() {
-//		for entry := range l.apply {
-//			l.sm.Apply(entry.Command)
-//			l.LastApplied = entry.Index
-//		}
-//	}()
-//}
+type logTx struct {
+	Apply chan struct{}
+	Done  chan struct{}
+}
 
-func (l *Log) Append(term Term, cmd interface{}) (err error) {
+func newLogTx() *logTx {
+	return &logTx{Apply: make(chan struct{}), Done: make(chan struct{})}
+}
+
+func (l *Log) append(term Term, cmd interface{}) (tx *logTx, err error) {
+	tx = newLogTx()
 	l.mutex.Lock()
 	e := newLogEntry(l, term, cmd)
 	// todo: save disk or make entries stable, committed
@@ -61,8 +62,11 @@ func (l *Log) Append(term Term, cmd interface{}) (err error) {
 	//	return
 	//}
 	l.CommitIndex = e.Index
+	// todo: eventually be applied to the state machine
+	<-tx.Apply
 	l.sm.Apply(e.Command)
 	l.LastApplied = e.Index
 	l.mutex.Unlock()
+	close(tx.Done)
 	return
 }

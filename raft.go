@@ -65,12 +65,11 @@ func (r *Raft) Run() {
 }
 
 func (r *Raft) Apply(command interface{}) (err error) {
-	err = r.Log.Append(r.CurrentTerm, command)
+	tx, err := r.append(r.CurrentTerm, command)
 	if err != nil {
 		return
 	}
 
-	done := make(chan struct{})
 	go func() {
 		arg := NewAppendEntriesArg(r.State)
 		peers := make(chan *rpc.Client, len(r.Connectivity.Peers))
@@ -88,10 +87,10 @@ func (r *Raft) Apply(command interface{}) (err error) {
 			// todo: check how to handle reply.Term
 			cnt++
 			if cnt >= len(r.Connectivity.Peers) {
-				close(done)
+				close(tx.Apply)
 			}
 		}
 	}()
-	<-done
+	<-tx.Done
 	return
 }

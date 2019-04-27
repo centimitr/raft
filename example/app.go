@@ -33,7 +33,10 @@ func peersUpdate(addrs *[]string) (r *ssdr.RegistryClient, err error) {
 	return
 }
 
+var kv = new(raft.KV)
+
 func app() {
+	// service discovery
 	var peerAddrs []string
 	_, err := peersUpdate(&peerAddrs)
 	if check(err, "service discovery") {
@@ -41,16 +44,18 @@ func app() {
 	}
 	fmt.Println(peerAddrs)
 
+	// raft: connect peers
 	r := raft.New(raft.Config{})
 	err = r.SetupConnectivity(peerAddrs, onPeerConnectError)
 	if check(err, "connect peers") {
 		return
 	}
 
-	kv := new(raft.KV)
+	// raft: bind state machine
 	r.BindStateMachine(kv)
 	go r.Run()
 
+	// service: run
 	err = http.ListenAndServe(":0", nil)
 	check(err)
 }

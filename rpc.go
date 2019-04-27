@@ -13,7 +13,8 @@ type AppendEntriesArg struct {
 
 func NewAppendEntriesArg(state *State) *AppendEntriesArg {
 	return &AppendEntriesArg{
-		Term: state.CurrentTerm,
+		Term:     state.CurrentTerm,
+		LeaderId: state.Id,
 	}
 }
 
