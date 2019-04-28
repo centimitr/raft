@@ -7,12 +7,29 @@ import (
 )
 
 type Connectivity struct {
-	Peers    []*rpc.Client
-	listener net.Listener
+	Peers       []*rpc.Client
+	listener    net.Listener
+	PeersUpdate chan []string
+	OnError     OnError
 }
 
 func NewConnectivity() *Connectivity {
-	return new(Connectivity)
+	return &Connectivity{
+		PeersUpdate: make(chan []string),
+	}
+}
+
+func (c *Connectivity) Port() int {
+	if c.listener == nil {
+		return 0
+	}
+	return c.listener.Addr().(*net.TCPAddr).Port
+}
+
+func (c *Connectivity) handleUpdates() {
+	for addrs := range c.PeersUpdate {
+		c.ConnectPeers(addrs)
+	}
 }
 
 func (c *Connectivity) ListenAndServe(serviceName string, v interface{}, addr string) (err error) {
@@ -30,29 +47,25 @@ func (c *Connectivity) ListenAndServe(serviceName string, v interface{}, addr st
 		return
 	}
 	go http.Serve(c.listener, s)
+	go c.handleUpdates()
 	return
 }
 
 func (c *Connectivity) ConnectPeer(addr string) (err error) {
 	client, err := rpc.DialHTTP("tcp", addr)
 	if err != nil {
+		c.OnError.Check(err)
 		return
 	}
 	c.Peers = append(c.Peers, client)
 	return
 }
 
-func (c *Connectivity) ConnectPeers(addrs []string, onError OnError) {
+func (c *Connectivity) ConnectPeers(addrs []string) {
 	for _, addr := range addrs {
 		err := c.ConnectPeer(addr)
-		onError.Check(err)
+		log("connect:", addr, err)
+		c.OnError.Check(err)
 	}
 	return
 }
-
-//func (c *Connectivity) ForEachPeer(fn func(client *rpc.Client) error, onError OnError) {
-//	for _, p := range c.Peers {
-//		err := fn(p)
-//		onError.Check(err)
-//	}
-//}

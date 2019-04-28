@@ -12,6 +12,10 @@ const (
 
 type NodeId string
 
+func (id *NodeId) String() string {
+	return string(*id)
+}
+
 func (id *NodeId) IsEmptyOrEqualTo(id2 NodeId) bool {
 	return *id == "" || *id == id2
 }

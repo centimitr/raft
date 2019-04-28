@@ -17,6 +17,8 @@ func tryKV() {
 	fmt.Println(kv.Get("users"))
 }
 
+var kv = new(raft.KV)
+
 func main() {
-	app()
+	_ = app(kv)
 }

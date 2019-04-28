@@ -1,6 +1,8 @@
 package raft
 
 import (
+	"errors"
+	"fmt"
 	"net/rpc"
 )
 
@@ -13,8 +15,13 @@ type Config struct {
 	RPCAddr string
 }
 
+type Events struct {
+	OnRoleChange handler
+}
+
 type Raft struct {
 	*State
+	*Events
 	Config       *Config
 	Log          *Log
 	Connectivity *Connectivity
@@ -40,28 +47,34 @@ func (r *Raft) BindStateMachine(stateMachine StateMachine) {
 	stateMachine.Delegate(r)
 }
 
-func (r *Raft) SetupConnectivity(peerAddrs []string, onPeerConnectError OnError) (err error) {
-	err = r.Connectivity.ListenAndServe("Raft", NewRPCDelegate(r), DefaultString(r.Config.RPCAddr, DefaultRPCAddr))
-	if err != nil {
-		return
-	}
-	go r.Connectivity.ConnectPeers(peerAddrs, onPeerConnectError)
+func (r *Raft) setupConnectivity() (err error) {
+	addr := DefaultString(r.Config.RPCAddr, DefaultRPCAddr)
+	err = r.Connectivity.ListenAndServe("Raft", NewRPCDelegate(r), addr)
 	return
 }
 
-func (r *Raft) Run() {
+func (r *Raft) Start() (err error) {
 	if r.Log == nil {
-		panic("raft: must bind a state machine before run")
+		err = errors.New("raft: must bind a state machine before run")
+		return
+	}
+	err = r.setupConnectivity()
+	if err != nil {
+		err = fmt.Errorf("raft: %s", err)
+		return
 	}
 	r.Election.Init()
-	for {
-		select {
-		case <-r.Election.Timer.C:
-			r.Election.Start()
-		case <-r.Quit:
-			break
+	go func() {
+		for {
+			select {
+			case <-r.Election.Timer.C:
+				r.Election.Start()
+			case <-r.Quit:
+				break
+			}
 		}
-	}
+	}()
+	return
 }
 
 func (r *Raft) Apply(command interface{}) (err error) {

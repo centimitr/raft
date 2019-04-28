@@ -1,61 +1,50 @@
 package main
 
 import (
-	"fmt"
 	"github.com/devbycm/raft"
 	"github.com/devbycm/ssdr"
-	"log"
-	"net/http"
 )
 
-//func onPeersUpdate(services ssdr.ServiceListValue) {
-//	log.Println(services)
-//}
-
-func onPeerConnectError(err error) {
-	log.Println(err)
-}
-
-func peersUpdate(addrs *[]string) (r *ssdr.RegistryClient, err error) {
-	r = ssdr.NewRegistryClient("ws://localhost:5000")
-	err = r.QuickSubscribe("raft")
+func register(svcAddr string, id string, peersUpdate chan<- []string) (err error) {
+	r := ssdr.NewRegistryClient("ws://localhost:5000")
+	err = r.QuickSubscribe("raft", id, svcAddr)
 	if err != nil {
 		return
 	}
-	var svl ssdr.ServiceListValue
-	svl = <-r.ServiceListInitial
-	*addrs = svl.Get("raft")
 	go func() {
-		for svl = range r.ServiceListUpdate {
-			*addrs = svl.Get("raft")
+		for svl := range r.ServiceListUpdate {
+			peersUpdate <- svl.GetAddrs("raft", id)
 		}
 	}()
 	return
 }
 
-var kv = new(raft.KV)
+func app(kv raft.StateMachine) (err error) {
+	// raft: bind state machine
+	r := raft.New(raft.Config{})
+	r.BindStateMachine(kv)
+	err = r.Start()
+	if check(err, "start") {
+		return
+	}
 
-func app() {
+	// DNS: register addr proxy
+	// todo: DNS
+	raftAddr := PortString(r.Connectivity.Port())
+
 	// service discovery
-	var peerAddrs []string
-	_, err := peersUpdate(&peerAddrs)
+	err = register(raftAddr, r.Id.String(), r.Connectivity.PeersUpdate)
 	if check(err, "service discovery") {
 		return
 	}
-	fmt.Println(peerAddrs)
 
-	// raft: connect peers
-	r := raft.New(raft.Config{})
-	err = r.SetupConnectivity(peerAddrs, onPeerConnectError)
-	if check(err, "connect peers") {
-		return
-	}
+	<-r.Quit
+	//r.OnRoleChange = func() {
+	//	srp.NewServer("", s.Addr())
+	//}
 
-	// raft: bind state machine
-	r.BindStateMachine(kv)
-	go r.Run()
-
-	// service: run
-	err = http.ListenAndServe(":0", nil)
-	check(err)
+	// service: listen
+	//err = http.ListenAndServe(":0", nil)
+	//check(err)
+	return
 }

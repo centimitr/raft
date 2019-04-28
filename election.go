@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	ElectionTimeout = 2 * time.Second
-	VotingTimeout   = 2 * time.Second
+	ElectionTimeout = 10 * time.Second
+	VotingTimeout   = 5 * time.Second
 )
 
 type Election struct {

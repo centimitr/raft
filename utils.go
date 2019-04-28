@@ -8,6 +8,14 @@ func log(vs ...interface{}) {
 	l2.Println(vs...)
 }
 
+type handler func()
+
+func (fn *handler) Handle() {
+	if (*fn) != nil {
+		(*fn)()
+	}
+}
+
 type OnError func(err error)
 
 func (fn *OnError) Check(err error) {
