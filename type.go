@@ -26,6 +26,10 @@ func NewNodeId() NodeId {
 
 type Term int
 
+func (t Term) LaterThan(t2 Term) bool {
+	return t > t2
+}
+
 func (t Term) NotEarlierThan(t2 Term) bool {
 	return t >= t2
 }

@@ -5,7 +5,7 @@ import (
 	"github.com/devbycm/ssdr"
 )
 
-func register(svcAddr string, id string, peersUpdate chan<- []string) (err error) {
+func register(svcAddr string, id string, peersUpdate chan<- []*raft.Peer) (err error) {
 	r := ssdr.NewRegistryClient("ws://localhost:5000")
 	err = r.QuickSubscribe("raft", id, svcAddr)
 	if err != nil {
@@ -13,16 +13,22 @@ func register(svcAddr string, id string, peersUpdate chan<- []string) (err error
 	}
 	go func() {
 		for svl := range r.ServiceListUpdate {
-			peersUpdate <- svl.GetAddrs("raft", id)
+			nodes := svl.Get("raft", id)
+			peers := make([]*raft.Peer, len(nodes))
+			for i, n := range nodes {
+				peers[i] = raft.NewPeer(n.Id, n.Addr)
+			}
+			peersUpdate <- peers
 		}
 	}()
 	return
 }
 
-func app(kv raft.StateMachine) (err error) {
+func app(kv *raft.KV) (err error) {
 	// raft: bind state machine
 	r := raft.New(raft.Config{})
 	r.BindStateMachine(kv)
+
 	err = r.Start()
 	if check(err, "start") {
 		return
@@ -38,13 +44,22 @@ func app(kv raft.StateMachine) (err error) {
 		return
 	}
 
-	<-r.Quit
+	//<-r.Quit
 	//r.OnRoleChange = func() {
 	//	srp.NewServer("", s.Addr())
 	//}
 
+	//s := gin.New()
+	//s.GET("/add", func(context *gin.Context) {
+	//
+	//})
+	//s.NoRoute(func(c *gin.Context) {
+	//	v, _ := kv.GetDefault("cnt", 0)
+	//	c.String(http.StatusOK, strconv.Itoa(v.(int)))
+	//})
+	//
 	// service: listen
-	//err = http.ListenAndServe(":0", nil)
+	//err = http.ListenAndServe(":3000", s)
 	//check(err)
 	return
 }

@@ -21,4 +21,5 @@ var kv = new(raft.KV)
 
 func main() {
 	_ = app(kv)
+	//tryKV()
 }

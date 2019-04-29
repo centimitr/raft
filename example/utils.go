@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/devbycm/raft"
+	"github.com/devbycm/ssdr"
 	"log"
 	"net"
 	"net/http"
@@ -47,4 +49,12 @@ func (s *DefaultPortServer) Listen() (err error) {
 
 func (s *DefaultPortServer) Serve(handler http.Handler) error {
 	return http.Serve(s.ln, handler)
+}
+
+func ServiceToPeers(nodes []*ssdr.ServiceNode) []*raft.Peer {
+	peers := make([]*raft.Peer, len(nodes))
+	for i, n := range nodes {
+		peers[i] = raft.NewPeer(n.Id, n.Addr)
+	}
+	return peers
 }

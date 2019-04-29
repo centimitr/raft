@@ -3,7 +3,6 @@ package raft
 import (
 	"errors"
 	"fmt"
-	"net/rpc"
 )
 
 const (
@@ -37,7 +36,7 @@ func (r *Raft) Init(c *Config) *Raft {
 	r.State = NewState()
 	r.Config = c
 	r.Connectivity = NewConnectivity()
-	r.Election = NewElection(r.State, r.Connectivity)
+	r.Election = NewElection(r)
 	r.Quit = make(chan struct{})
 	return r
 }
@@ -68,7 +67,12 @@ func (r *Raft) Start() (err error) {
 		for {
 			select {
 			case <-r.Election.Timer.C:
-				r.Election.Start()
+				r.Role = Candidate
+				win := r.Election.Start()
+				if win {
+					r.Role = Leader
+					go r.callDeclareLeader()
+				}
 			case <-r.Quit:
 				break
 			}
@@ -78,32 +82,11 @@ func (r *Raft) Start() (err error) {
 }
 
 func (r *Raft) Apply(command interface{}) (err error) {
-	tx, err := r.append(r.CurrentTerm, command)
+	tx, err := r.Log.append(r.CurrentTerm, command)
 	if err != nil {
 		return
 	}
-
-	go func() {
-		arg := NewAppendEntriesArg(r.State)
-		peers := make(chan *rpc.Client, len(r.Connectivity.Peers))
-		for _, peer := range r.Connectivity.Peers {
-			peers <- peer
-		}
-		cnt := 0
-		for peer := range peers {
-			var reply AppendEntriesReply
-			// todo: modify to concurrent call after debug
-			err := peer.Call("Raft.AppendEntries", arg, &reply)
-			if err != nil || !reply.Success {
-				peers <- peer
-			}
-			// todo: check how to handle reply.Term
-			cnt++
-			if cnt >= len(r.Connectivity.Peers) {
-				close(tx.Apply)
-			}
-		}
-	}()
+	go r.callAppendEntries(tx.Apply)
 	<-tx.Done
 	return
 }
