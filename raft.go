@@ -3,11 +3,18 @@ package raft
 import (
 	"errors"
 	"fmt"
+	"time"
 )
 
 const (
 	//DefaultRPCAddr = ":3456"
 	DefaultRPCAddr = ""
+)
+
+var (
+	ElectionTimeout  = 10 * time.Second
+	VotingTimeout    = 5 * time.Second
+	HeartbeatTimeout = 5 * time.Second
 )
 
 type Config struct {
@@ -57,22 +64,39 @@ func (r *Raft) Start() (err error) {
 		err = errors.New("raft: must bind a state machine before run")
 		return
 	}
+	r.Role.didSet(func() {
+		// todo: remove debug
+		log("role:", r.Role)
+		switch r.Role.typ {
+		case Follower:
+		case Candidate:
+			win := r.Election.Start()
+			if win {
+				r.Role.set(Leader)
+			} else {
+				// this is not necessary but logical
+				r.Role.set(Candidate)
+			}
+		case Leader:
+			go func() {
+				// todo: heartbeat
+				r.callDeclareLeader(nil)
+				time.Sleep(HeartbeatTimeout)
+			}()
+		}
+	})
+	r.Role.set(Follower)
 	err = r.setupConnectivity()
+	r.Election.Init()
 	if err != nil {
 		err = fmt.Errorf("raft: %s", err)
 		return
 	}
-	r.Election.Init()
 	go func() {
 		for {
 			select {
 			case <-r.Election.Timer.C:
-				r.Role = Candidate
-				win := r.Election.Start()
-				if win {
-					r.Role = Leader
-					go r.callDeclareLeader()
-				}
+				r.Role.set(Candidate)
 			case <-r.Quit:
 				break
 			}

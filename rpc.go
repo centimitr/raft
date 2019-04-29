@@ -29,16 +29,16 @@ type RequestVotesReply struct {
 func (r *Raft) appendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) (err error) {
 	reply.Term = r.CurrentTerm
 	if arg.Term.LaterThan(r.CurrentTerm) {
-		if r.Role == Candidate {
+		if r.Role.Is(Candidate) {
 			if r.Election.Processing {
 				r.Election.Abandon()
 			}
 		}
-		r.Role = Follower
+		r.Role.set(Follower)
 		r.CurrentTerm = arg.Term
 	}
 
-	switch r.Role {
+	switch r.Role.typ {
 	case Follower:
 		r.Election.ResetTimer()
 		// todo: appendEntries
@@ -51,16 +51,16 @@ func (r *Raft) appendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) (e
 func (r *Raft) requestVotes(arg RequestVotesArg, reply *AppendEntriesReply) (err error) {
 	reply.Term = r.CurrentTerm
 	if arg.Term.LaterThan(r.CurrentTerm) {
-		if r.Role == Candidate {
+		if r.Role.Is(Candidate) {
 			if r.Election.Processing {
 				r.Election.Abandon()
 			}
 		}
-		r.Role = Follower
+		r.Role.set(Follower)
 		r.CurrentTerm = arg.Term
 	}
 
-	switch r.Role {
+	switch r.Role.typ {
 	case Follower:
 		r.Election.ResetTimer()
 		// todo: log validity

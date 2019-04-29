@@ -5,11 +5,6 @@ import (
 	"time"
 )
 
-var (
-	ElectionTimeout = 10 * time.Second
-	VotingTimeout   = 5 * time.Second
-)
-
 type Election struct {
 	r *Raft
 
@@ -57,18 +52,12 @@ func (e *Election) Start() (win bool) {
 	case <-v.Done:
 		log("elect: done")
 		win = v.Win()
-		//if v.Win() {
-		//log("elect: win")
-		//e.state.Role = Leader
-		//go e.announceBeingLeader()
-		//}
 	case <-v.Timeout:
 		log("elect: timeout")
 		time.Sleep(randomElectionInterval())
 		win = e.Start()
 	case <-v.Cancel:
 		log("elect: cancel")
-		//e.state.Role = Follower
 	}
 	log("elect: end")
 	e.Processing = false

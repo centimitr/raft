@@ -1,7 +1,5 @@
 package raft
 
-import "sync"
-
 func NewAppendEntriesArg(state *State) *AppendEntriesArg {
 	return &AppendEntriesArg{
 		Term:     state.CurrentTerm,
@@ -40,10 +38,8 @@ func (r *Raft) callRequestVotes(v *Voting) {
 	}
 }
 
-func (r *Raft) callDeclareLeader() {
-	var wg sync.WaitGroup
-	// notify all
-	wg.Wait()
+func (r *Raft) callDeclareLeader(apply chan<- struct{}) {
+	r.callAppendEntries(apply)
 }
 
 func (r *Raft) callAppendEntries(apply chan<- struct{}) {

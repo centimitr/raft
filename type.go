@@ -2,13 +2,43 @@ package raft
 
 import "github.com/google/uuid"
 
-type Role int
+type RoleType string
 
 const (
-	Follower Role = iota
-	Candidate
-	Leader
+	Follower  RoleType = "follower"
+	Candidate RoleType = "candidate"
+	Leader    RoleType = "leader"
 )
+
+type onRoleSet func()
+
+func (fn *onRoleSet) apply() {
+	if (*fn) != nil {
+		(*fn)()
+	}
+}
+
+type Role struct {
+	typ   RoleType
+	onSet onRoleSet
+}
+
+func (r *Role) Is(typ RoleType) bool {
+	return r.typ == typ
+}
+
+func (r *Role) set(typ RoleType) {
+	r.typ = typ
+	r.onSet.apply()
+}
+
+func (r *Role) didSet(fn onRoleSet) {
+	r.onSet = fn
+}
+
+func (r Role) String() string {
+	return string(r.typ)
+}
 
 type NodeId string
 
