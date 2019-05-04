@@ -26,51 +26,64 @@ type RequestVotesReply struct {
 	VoteGranted bool
 }
 
-func (r *Raft) appendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) (err error) {
-	reply.Term = r.CurrentTerm
-	if arg.Term.LaterThan(r.CurrentTerm) {
+func checkReqTerm(r *Raft, term Term) bool {
+	if term.EarlierThan(r.CurrentTerm) {
+		return false
+	}
+	if term.LaterThan(r.CurrentTerm) {
 		if r.Role.Is(Candidate) {
 			if r.Election.Processing {
 				r.Election.Abandon()
 			}
 		}
 		r.Role.set(Follower)
-		r.CurrentTerm = arg.Term
+		r.CurrentTerm = term
 	}
+	r.Election.ResetTimer()
+	return true
+}
 
-	switch r.Role.typ {
-	case Follower:
-		r.Election.ResetTimer()
-		// todo: appendEntries
-		reply.Success = true
-	case Leader, Candidate:
+func (r *Raft) appendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) (err error) {
+	reply.Term = r.CurrentTerm
+	if !checkReqTerm(r, arg.Term) {
+		return
 	}
-	return nil
+	if !r.Log.match(arg.PrevLogIndex, arg.PrevLogTerm) {
+		return
+	}
+	// todo: two leader
+	if !r.Role.Is(Follower) {
+		panic("debug: heartbeats should keep node followers")
+		return
+	}
+	// todo: conflicts
+	// todo: append new entries
+	if len(arg.Entries) == 0 {
+		log("heartbeats")
+	}
+	if arg.LeaderCommit > r.CommitIndex {
+		if r.Log.LastIndex < arg.LeaderCommit {
+			r.CommitIndex = r.Log.LastIndex
+		} else {
+			r.CommitIndex = arg.LeaderCommit
+		}
+		go r.Log.apply()
+	}
+	//
+	reply.Success = true
+	return
 }
 
 func (r *Raft) requestVotes(arg RequestVotesArg, reply *AppendEntriesReply) (err error) {
 	reply.Term = r.CurrentTerm
-	if arg.Term.LaterThan(r.CurrentTerm) {
-		if r.Role.Is(Candidate) {
-			if r.Election.Processing {
-				r.Election.Abandon()
-			}
-		}
-		r.Role.set(Follower)
-		r.CurrentTerm = arg.Term
+	if !checkReqTerm(r, arg.Term) {
+		return
 	}
-
-	switch r.Role.typ {
-	case Follower:
-		r.Election.ResetTimer()
-		// todo: log validity
-		var logValid bool
-		if r.VotedFor.IsEmptyOrEqualTo(arg.CandidateId) && logValid {
-			r.VotedFor = arg.CandidateId
-			reply.Success = true
-		}
-	case Leader, Candidate:
-
-	}
+	// todo: log validity
+	//var logValid bool
+	//if r.VotedFor.IsEmptyOrEqualTo(arg.CandidateId) {
+	r.VotedFor = arg.CandidateId
+	reply.Success = true
+	//}
 	return
 }

@@ -9,9 +9,7 @@ import (
 const (
 	//DefaultRPCAddr = ":3456"
 	DefaultRPCAddr = ""
-)
 
-var (
 	ElectionTimeout  = 10 * time.Second
 	VotingTimeout    = 5 * time.Second
 	HeartbeatTimeout = 5 * time.Second
@@ -79,9 +77,11 @@ func (r *Raft) Start() (err error) {
 			}
 		case Leader:
 			go func() {
-				// todo: heartbeat
-				r.callDeclareLeader(nil)
-				time.Sleep(HeartbeatTimeout)
+				for {
+					// todo: heartbeat
+					r.callDeclareLeader()
+					time.Sleep(HeartbeatTimeout)
+				}
 			}()
 		}
 	})
@@ -110,7 +110,11 @@ func (r *Raft) Apply(command interface{}) (err error) {
 	if err != nil {
 		return
 	}
-	go r.callAppendEntries(tx.Apply)
-	<-tx.Done
-	return
+	go r.callAppendEntries(tx.Apply, tx.Cancel)
+	select {
+	case err := <-tx.Cancel:
+		return err
+	case <-tx.Done:
+		return
+	}
 }

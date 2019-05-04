@@ -1,5 +1,9 @@
 package raft
 
+import (
+	"fmt"
+)
+
 func NewAppendEntriesArg(state *State) *AppendEntriesArg {
 	return &AppendEntriesArg{
 		Term:     state.CurrentTerm,
@@ -15,6 +19,14 @@ func NewRequestVotesArg(state *State) *RequestVotesArg {
 		LastLogIndex: 0,
 		LastLogTerm:  0,
 	}
+}
+
+func checkRespTerm(r *Raft, term Term) bool {
+	if term > r.CurrentTerm {
+		r.CurrentTerm = term
+		return false
+	}
+	return true
 }
 
 func (r *Raft) callRequestVotes(v *Voting) {
@@ -38,11 +50,14 @@ func (r *Raft) callRequestVotes(v *Voting) {
 	}
 }
 
-func (r *Raft) callDeclareLeader(apply chan<- struct{}) {
-	r.callAppendEntries(apply)
+func (r *Raft) callDeclareLeader() {
+	log("heartbeats")
+	// todo: implement real callDeclareLeader
+	tx := newLogTx()
+	r.callAppendEntries(tx.Apply, tx.Cancel)
 }
 
-func (r *Raft) callAppendEntries(apply chan<- struct{}) {
+func (r *Raft) callAppendEntries(apply chan<- struct{}, cancel chan<- error) {
 	arg := NewAppendEntriesArg(r.State)
 	peers := make(chan *Peer, len(r.Connectivity.Peers))
 	for _, peer := range r.Connectivity.Peers {
@@ -53,6 +68,11 @@ func (r *Raft) callAppendEntries(apply chan<- struct{}) {
 		var reply AppendEntriesReply
 		// todo: modify to concurrent call after debug
 		err := peer.Call("Raft.AppendEntries", arg, &reply)
+		if checkRespTerm(r, reply.Term) {
+			r.Role.set(Follower)
+			cancel <- fmt.Errorf("raft.callAppendEntries: currentTerm: %d, reply.term: %d", r.CurrentTerm, reply.Term)
+			close(cancel)
+		}
 		if err != nil || !reply.Success {
 			peers <- peer
 		}

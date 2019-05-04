@@ -10,9 +10,9 @@ const (
 	Leader    RoleType = "leader"
 )
 
-type onRoleSet func()
+type onSet func()
 
-func (fn *onRoleSet) apply() {
+func (fn *onSet) apply() {
 	if (*fn) != nil {
 		(*fn)()
 	}
@@ -20,7 +20,7 @@ func (fn *onRoleSet) apply() {
 
 type Role struct {
 	typ   RoleType
-	onSet onRoleSet
+	onSet onSet
 }
 
 func (r *Role) Is(typ RoleType) bool {
@@ -28,11 +28,13 @@ func (r *Role) Is(typ RoleType) bool {
 }
 
 func (r *Role) set(typ RoleType) {
-	r.typ = typ
-	r.onSet.apply()
+	if r.typ != typ {
+		r.typ = typ
+		r.onSet.apply()
+	}
 }
 
-func (r *Role) didSet(fn onRoleSet) {
+func (r *Role) didSet(fn onSet) {
 	r.onSet = fn
 }
 
@@ -55,6 +57,10 @@ func NewNodeId() NodeId {
 }
 
 type Term int
+
+func (t Term) EarlierThan(t2 Term) bool {
+	return t < t2
+}
 
 func (t Term) LaterThan(t2 Term) bool {
 	return t > t2

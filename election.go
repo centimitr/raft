@@ -50,8 +50,8 @@ func (e *Election) Start() (win bool) {
 
 	select {
 	case <-v.Done:
-		log("elect: done")
 		win = v.Win()
+		log("elect: done", v.Win(), v.total, v.approves, v.rejects)
 	case <-v.Timeout:
 		log("elect: timeout")
 		time.Sleep(randomElectionInterval())
