@@ -1,30 +1,35 @@
 package raft
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/rpc"
 )
 
+type PeerId = string
+
 type Peer struct {
-	Id   string
+	Id   PeerId
 	Addr string
 	*rpc.Client
+	Meta map[string]interface{}
 }
 
 func NewPeer(id string, addr string) *Peer {
-	return &Peer{Id: id, Addr: addr}
+	return &Peer{Id: id, Addr: addr, Meta: make(map[string]interface{})}
 }
 
 type Connectivity struct {
-	Peers       []*Peer
 	listener    net.Listener
 	PeersUpdate chan []*Peer
+	Peers       map[PeerId]*Peer
 	OnError     OnError
 }
 
 func NewConnectivity() *Connectivity {
 	return &Connectivity{
+		Peers:       make(map[PeerId]*Peer),
 		PeersUpdate: make(chan []*Peer),
 	}
 }
@@ -62,15 +67,15 @@ func (c *Connectivity) ListenAndServe(serviceName string, v interface{}, addr st
 }
 
 func (c *Connectivity) HasConnectedPeer(peer *Peer) bool {
-	for _, p := range c.Peers {
-		if p.Id == peer.Id {
-			return true
-		}
+	_, ok := c.Peers[peer.Id]
+	if ok {
+		return true
 	}
 	return false
 }
 
 func (c *Connectivity) ConnectPeer(peer *Peer) (err error) {
+	fmt.Println(peer.Id)
 	if c.HasConnectedPeer(peer) {
 		return
 	}
@@ -79,7 +84,7 @@ func (c *Connectivity) ConnectPeer(peer *Peer) (err error) {
 		c.OnError.Check(err)
 		return
 	}
-	c.Peers = append(c.Peers, peer)
+	c.Peers[peer.Id] = peer
 	return
 }
 

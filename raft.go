@@ -76,6 +76,7 @@ func (r *Raft) Start() (err error) {
 				r.Role.set(Candidate)
 			}
 		case Leader:
+			r.Leader.Reset()
 			go func() {
 				for {
 					// todo: heartbeat

@@ -5,7 +5,7 @@ type AppendEntriesArg struct {
 	LeaderId     NodeId
 	PrevLogIndex LogEntryIndex
 	PrevLogTerm  Term
-	Entries      []LogEntry
+	Entries      []*LogEntry
 	LeaderCommit LogEntryIndex
 }
 
@@ -56,10 +56,12 @@ func (r *Raft) appendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) (e
 		panic("debug: heartbeats should keep node followers")
 		return
 	}
-	// todo: conflicts
-	// todo: append new entries
+
+	// todo: conflicts, append new entries
+	r.Log.patch(arg.Entries)
+	// log heartbeats
 	if len(arg.Entries) == 0 {
-		log("heartbeats")
+		log("recv: pure heartbeats")
 	}
 	if arg.LeaderCommit > r.CommitIndex {
 		if r.Log.LastIndex < arg.LeaderCommit {

@@ -4,11 +4,26 @@ import (
 	"fmt"
 )
 
-func NewAppendEntriesArg(state *State) *AppendEntriesArg {
+const (
+	methodAppendEntries = "Raft.AppendEntries"
+	methodRequestVotes  = "Raft.RequestVotes"
+)
+
+func NewHeartbeatArg(state *State, peer *Peer) *AppendEntriesArg {
+	idx := state.Leader.NextIndex(peer.Id) - 1
 	return &AppendEntriesArg{
-		Term:     state.CurrentTerm,
-		LeaderId: state.Id,
+		Term:         state.CurrentTerm,
+		LeaderId:     state.Id,
+		PrevLogIndex: idx,
+		PrevLogTerm:  state.Log.retrieve(idx).Term,
+		LeaderCommit: state.Log.CommitIndex,
 	}
+}
+
+func NewAppendEntriesArg(state *State, peer *Peer) *AppendEntriesArg {
+	arg := NewHeartbeatArg(state, peer)
+	arg.Entries = state.Log.slice(state.Leader.NextIndex(peer.Id))
+	return arg
 }
 
 func NewRequestVotesArg(state *State) *RequestVotesArg {
@@ -35,7 +50,7 @@ func (r *Raft) callRequestVotes(v *Voting) {
 			var reply RequestVotesReply
 			// todo: create voting request
 			args := NewRequestVotesArg(r.State)
-			err := peer.Call("Raft.RequestVotes", args, &reply)
+			err := peer.Call(methodRequestVotes, args, &reply)
 			// todo: check if vote response valid
 			if err != nil {
 				v.Fail(err)
@@ -51,23 +66,27 @@ func (r *Raft) callRequestVotes(v *Voting) {
 }
 
 func (r *Raft) callDeclareLeader() {
-	log("heartbeats")
-	// todo: implement real callDeclareLeader
-	tx := newLogTx()
-	r.callAppendEntries(tx.Apply, tx.Cancel)
+	log("broadcast: heartbeats")
+	for _, p := range r.Connectivity.Peers {
+		var arg = NewHeartbeatArg(r.State, p)
+		var reply AppendEntriesReply
+		err := p.Call(methodAppendEntries, arg, &reply)
+		// todo: err
+		_ = err
+	}
 }
 
 func (r *Raft) callAppendEntries(apply chan<- struct{}, cancel chan<- error) {
-	arg := NewAppendEntriesArg(r.State)
 	peers := make(chan *Peer, len(r.Connectivity.Peers))
 	for _, peer := range r.Connectivity.Peers {
 		peers <- peer
 	}
 	cnt := 0
 	for peer := range peers {
+		arg := NewAppendEntriesArg(r.State, peer)
 		var reply AppendEntriesReply
 		// todo: modify to concurrent call after debug
-		err := peer.Call("Raft.AppendEntries", arg, &reply)
+		err := peer.Call(methodAppendEntries, arg, &reply)
 		if checkRespTerm(r, reply.Term) {
 			r.Role.set(Follower)
 			cancel <- fmt.Errorf("raft.callAppendEntries: currentTerm: %d, reply.term: %d", r.CurrentTerm, reply.Term)

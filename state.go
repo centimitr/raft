@@ -2,11 +2,6 @@ package raft
 
 import "sync"
 
-type LeaderState struct {
-	NextIndex  []LogEntryIndex
-	MatchIndex []LogEntryIndex
-}
-
 type State struct {
 	Role Role
 	Id   NodeId
@@ -15,7 +10,7 @@ type State struct {
 	VotedFor    NodeId
 
 	*Log
-	*LeaderState
+	Leader *LeaderState
 
 	mutex sync.RWMutex
 }
@@ -23,5 +18,31 @@ type State struct {
 func NewState() *State {
 	s := new(State)
 	s.Id = NewNodeId()
+	s.Leader = newLeaderState(s.Log)
 	return s
+}
+
+type LeaderState struct {
+	log        *Log
+	nextIndex  sync.Map
+	matchIndex sync.Map
+}
+
+func newLeaderState(l *Log) *LeaderState {
+	return &LeaderState{log: l}
+}
+
+func (ls *LeaderState) Reset() {
+	ls.nextIndex = sync.Map{}
+	ls.matchIndex = sync.Map{}
+}
+
+func (ls *LeaderState) NextIndex(id PeerId) LogEntryIndex {
+	v, _ := ls.nextIndex.LoadOrStore(id, ls.log.NextIndex())
+	return v.(LogEntryIndex)
+}
+
+func (ls *LeaderState) MatchIndex(id PeerId) LogEntryIndex {
+	v, _ := ls.matchIndex.LoadOrStore(id, LogEntryIndex(0))
+	return v.(LogEntryIndex)
 }

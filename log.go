@@ -11,11 +11,11 @@ type StateMachine interface {
 	Delegate(delegate StateMachineDelegate)
 }
 
-type LogEntryIndex int
+type LogEntryIndex = int
 
-func (i LogEntryIndex) succ() LogEntryIndex {
-	return i + 1
-}
+//func (i LogEntryIndex) succ() LogEntryIndex {
+//	return i + 1
+//}
 
 type LogEntry struct {
 	Index   LogEntryIndex
@@ -63,6 +63,7 @@ func newLogTx() *logTx {
 	}
 }
 
+// retrieve returns a LogEntry at given index.
 func (l *Log) retrieve(index LogEntryIndex) *LogEntry {
 	if int(index) < 0 || int(index) >= len(l.Entries) {
 		return nil
@@ -70,6 +71,7 @@ func (l *Log) retrieve(index LogEntryIndex) *LogEntry {
 	return l.Entries[index]
 }
 
+// match checks if the entry at given index has the specified term value.
 func (l *Log) match(index LogEntryIndex, wantedTerm Term) bool {
 	e := l.retrieve(index)
 	if e == nil {
@@ -81,6 +83,12 @@ func (l *Log) match(index LogEntryIndex, wantedTerm Term) bool {
 	return false
 }
 
+// slice returns log entries after given index.
+func (l *Log) slice(startFrom LogEntryIndex) []*LogEntry {
+	return l.Entries[startFrom:]
+}
+
+// apply applies committed logs into the state machine.
 func (l *Log) apply() {
 	for l.CommitIndex > l.LastApplied {
 		l.LastApplied++
@@ -91,6 +99,12 @@ func (l *Log) apply() {
 	}
 }
 
+// patch is used by followers to remove conflicts and append entries from the leader.
+func (l *Log) patch([]LogEntry) {
+
+}
+
+// append executes a log transaction to append a new log entry, and then apply it.
 func (l *Log) append(term Term, cmd interface{}) (tx *logTx, err error) {
 	tx = newLogTx()
 	l.mutex.Lock()
@@ -109,4 +123,9 @@ func (l *Log) append(term Term, cmd interface{}) (tx *logTx, err error) {
 	l.mutex.Unlock()
 	close(tx.Done)
 	return
+}
+
+// NextIndex returns the upcoming log entry's index
+func (l *Log) NextIndex() LogEntryIndex {
+	return l.LastIndex + 1
 }
