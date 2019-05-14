@@ -52,10 +52,11 @@ func (r *Raft) appendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) (e
 		return
 	}
 	// todo: two leader
-	if !r.Role.Is(Follower) {
-		panic("debug: heartbeats should keep node followers")
-		return
-	}
+	//if !r.Role.Is(Follower) {
+	//	fmt.Println("ROLE:", r.Role.String())
+	//	panic("debug: heartbeats should keep node followers")
+	//	return
+	//}
 	// todo: conflicts, append new entries
 	r.Log.patch(arg.PrevLogIndex, arg.Entries)
 	// log heartbeats
@@ -80,11 +81,12 @@ func (r *Raft) requestVotes(arg RequestVotesArg, reply *RequestVotesReply) (err 
 	if !checkReqTerm(r, arg.Term) {
 		return
 	}
-	// todo: log validity
-	//var logValid bool
-	//if r.VotedFor.IsEmptyOrEqualTo(arg.CandidateId) {
-	r.VotedFor = arg.CandidateId
-	reply.VoteGranted = true
-	//}
+	lastLogEntry := r.Log.last()
+	hasMoreUpToDateLog := arg.LastLogTerm > lastLogEntry.Term ||
+		(arg.LastLogTerm == lastLogEntry.Term && arg.LastLogIndex >= lastLogEntry.Index)
+	if r.VotedFor.IsEmptyOrEqualTo(arg.CandidateId) && hasMoreUpToDateLog {
+		r.VotedFor = arg.CandidateId
+		reply.VoteGranted = true
+	}
 	return
 }

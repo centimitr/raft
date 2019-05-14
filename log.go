@@ -76,6 +76,10 @@ func (l *Log) retrieve(index LogEntryIndex) (entry *LogEntry) {
 	return
 }
 
+func (l *Log) last() (entry *LogEntry) {
+	return l.retrieve(l.LastIndex)
+}
+
 // match checks if the entry at given index has the specified term value.
 func (l *Log) match(index LogEntryIndex, wantedTerm Term) bool {
 	e := l.retrieve(index)

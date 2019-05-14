@@ -9,13 +9,8 @@ import (
 const (
 	//DefaultRPCAddr = ":3456"
 	DefaultRPCAddr = ""
-
-	//ElectionTimeout  = 200 * time.Millisecond
-	//VotingTimeout    = 120 * time.Millisecond
-	//HeartbeatTimeout = 50 * time.Millisecond
-	ElectionTimeout  = 2000 * time.Millisecond
-	VotingTimeout    = 1200 * time.Millisecond
-	HeartbeatTimeout = 500 * time.Millisecond
+	
+	HeartbeatTimeout = 50 * time.Millisecond
 )
 
 type Config struct {
@@ -70,13 +65,11 @@ func (r *Raft) Start() (err error) {
 		log("role:", r.Role)
 		switch r.Role.typ {
 		case Follower:
+			r.VotedFor = ""
 		case Candidate:
 			win := r.Election.Start()
 			if win {
 				r.Role.set(Leader)
-			} else {
-				// this is not necessary but logical
-				r.Role.set(Candidate)
 			}
 		case Leader:
 			r.Leader.Reset()
@@ -91,7 +84,7 @@ func (r *Raft) Start() (err error) {
 	})
 	r.Role.set(Follower)
 	err = r.setupConnectivity()
-	r.Election.Init()
+	r.Election.ResetTimer()
 	if err != nil {
 		err = fmt.Errorf("raft: %s", err)
 		return
