@@ -56,12 +56,11 @@ func (r *Raft) appendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) (e
 		panic("debug: heartbeats should keep node followers")
 		return
 	}
-
 	// todo: conflicts, append new entries
-	r.Log.patch(arg.Entries)
+	r.Log.patch(arg.PrevLogIndex, arg.Entries)
 	// log heartbeats
 	if len(arg.Entries) == 0 {
-		log("recv: pure heartbeats")
+		log("recv: heartbeats")
 	}
 	if arg.LeaderCommit > r.CommitIndex {
 		if r.Log.LastIndex < arg.LeaderCommit {
@@ -76,7 +75,7 @@ func (r *Raft) appendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) (e
 	return
 }
 
-func (r *Raft) requestVotes(arg RequestVotesArg, reply *AppendEntriesReply) (err error) {
+func (r *Raft) requestVotes(arg RequestVotesArg, reply *RequestVotesReply) (err error) {
 	reply.Term = r.CurrentTerm
 	if !checkReqTerm(r, arg.Term) {
 		return
@@ -85,7 +84,7 @@ func (r *Raft) requestVotes(arg RequestVotesArg, reply *AppendEntriesReply) (err
 	//var logValid bool
 	//if r.VotedFor.IsEmptyOrEqualTo(arg.CandidateId) {
 	r.VotedFor = arg.CandidateId
-	reply.Success = true
+	reply.VoteGranted = true
 	//}
 	return
 }

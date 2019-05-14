@@ -10,9 +10,12 @@ const (
 	//DefaultRPCAddr = ":3456"
 	DefaultRPCAddr = ""
 
-	ElectionTimeout  = 10 * time.Second
-	VotingTimeout    = 5 * time.Second
-	HeartbeatTimeout = 5 * time.Second
+	//ElectionTimeout  = 200 * time.Millisecond
+	//VotingTimeout    = 120 * time.Millisecond
+	//HeartbeatTimeout = 50 * time.Millisecond
+	ElectionTimeout  = 2000 * time.Millisecond
+	VotingTimeout    = 1200 * time.Millisecond
+	HeartbeatTimeout = 500 * time.Millisecond
 )
 
 type Config struct {
@@ -27,7 +30,6 @@ type Raft struct {
 	*State
 	*Events
 	Config       *Config
-	Log          *Log
 	Connectivity *Connectivity
 	Election     *Election
 	Quit         chan struct{}
@@ -48,6 +50,7 @@ func (r *Raft) Init(c *Config) *Raft {
 
 func (r *Raft) BindStateMachine(stateMachine StateMachine) {
 	r.Log = NewLog(stateMachine)
+	r.Leader = newLeaderState(r.Log)
 	stateMachine.Delegate(r)
 }
 

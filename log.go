@@ -1,6 +1,8 @@
 package raft
 
-import "sync"
+import (
+	"sync"
+)
 
 type StateMachineDelegate interface {
 	Apply(cmd interface{}) error
@@ -44,7 +46,7 @@ type Log struct {
 func NewLog(stateMachine StateMachine) *Log {
 	l := new(Log)
 	// entries start from index 1
-	l.Entries = []*LogEntry{nil}
+	l.Entries = []*LogEntry{new(LogEntry)}
 	l.sm = stateMachine
 	return l
 }
@@ -64,11 +66,14 @@ func newLogTx() *logTx {
 }
 
 // retrieve returns a LogEntry at given index.
-func (l *Log) retrieve(index LogEntryIndex) *LogEntry {
+func (l *Log) retrieve(index LogEntryIndex) (entry *LogEntry) {
+	l.mutex.RLock()
 	if int(index) < 0 || int(index) >= len(l.Entries) {
 		return nil
 	}
-	return l.Entries[index]
+	entry = l.Entries[index]
+	l.mutex.RUnlock()
+	return
 }
 
 // match checks if the entry at given index has the specified term value.
@@ -84,8 +89,11 @@ func (l *Log) match(index LogEntryIndex, wantedTerm Term) bool {
 }
 
 // slice returns log entries after given index.
-func (l *Log) slice(startFrom LogEntryIndex) []*LogEntry {
-	return l.Entries[startFrom:]
+func (l *Log) slice(startFrom LogEntryIndex) (entries []*LogEntry) {
+	l.mutex.RLock()
+	entries = l.Entries[startFrom:]
+	l.mutex.RUnlock()
+	return
 }
 
 // apply applies committed logs into the state machine.
@@ -100,8 +108,17 @@ func (l *Log) apply() {
 }
 
 // patch is used by followers to remove conflicts and append entries from the leader.
-func (l *Log) patch([]LogEntry) {
-
+func (l *Log) patch(prevLogIndex LogEntryIndex, entries []*LogEntry) {
+	l.mutex.Lock()
+	var pos int
+	for i, entry := range l.Entries {
+		if entry.Index == prevLogIndex {
+			pos = i
+			break
+		}
+	}
+	l.Entries = append(l.Entries[:pos+1], entries...)
+	l.mutex.Unlock()
 }
 
 // append executes a log transaction to append a new log entry, and then apply it.

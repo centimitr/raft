@@ -44,6 +44,7 @@ func checkRespTerm(r *Raft, term Term) bool {
 	return true
 }
 
+// callRequestVotes requests votes from peers
 func (r *Raft) callRequestVotes(v *Voting) {
 	for _, peer := range r.Connectivity.Peers {
 		go func(peer *Peer) {
@@ -65,6 +66,7 @@ func (r *Raft) callRequestVotes(v *Voting) {
 	}
 }
 
+// callDeclareLeader sends heartbeats to followers to keep them followers
 func (r *Raft) callDeclareLeader() {
 	log("broadcast: heartbeats")
 	for _, p := range r.Connectivity.Peers {
@@ -76,6 +78,7 @@ func (r *Raft) callDeclareLeader() {
 	}
 }
 
+// callAppendEntries tries to append log entries to followers
 func (r *Raft) callAppendEntries(apply chan<- struct{}, cancel chan<- error) {
 	peers := make(chan *Peer, len(r.Connectivity.Peers))
 	for _, peer := range r.Connectivity.Peers {

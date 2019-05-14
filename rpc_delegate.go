@@ -13,6 +13,6 @@ func (d *RPCDelegate) AppendEntries(arg AppendEntriesArg, reply *AppendEntriesRe
 	return d.r.appendEntries(arg, reply)
 }
 
-func (d *RPCDelegate) RequestVotes(arg RequestVotesArg, reply *AppendEntriesReply) error {
+func (d *RPCDelegate) RequestVotes(arg RequestVotesArg, reply *RequestVotesReply) error {
 	return d.r.requestVotes(arg, reply)
 }

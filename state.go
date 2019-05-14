@@ -18,7 +18,6 @@ type State struct {
 func NewState() *State {
 	s := new(State)
 	s.Id = NewNodeId()
-	s.Leader = newLeaderState(s.Log)
 	return s
 }
 
