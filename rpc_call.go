@@ -9,14 +9,16 @@ const (
 	methodRequestVotes  = "Raft.RequestVotes"
 )
 
-func NewHeartbeatArg(state *State, peer *Peer) *AppendEntriesArg {
-	idx := state.Leader.NextIndex(peer.Id) - 1
+func NewHeartbeatArg(r *State, peer *Peer) *AppendEntriesArg {
+	idx := r.Leader.NextIndex(peer.Id) - 1
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return &AppendEntriesArg{
-		Term:         state.CurrentTerm,
-		LeaderId:     state.Id,
+		Term:         r.CurrentTerm,
+		LeaderId:     r.Id,
 		PrevLogIndex: idx,
-		PrevLogTerm:  state.Log.retrieve(idx).Term,
-		LeaderCommit: state.Log.CommitIndex,
+		PrevLogTerm:  r.Log.retrieve(idx).Term,
+		LeaderCommit: r.Log.CommitIndex,
 	}
 }
 
@@ -26,10 +28,12 @@ func NewAppendEntriesArg(state *State, peer *Peer) *AppendEntriesArg {
 	return arg
 }
 
-func NewRequestVotesArg(state *State) *RequestVotesArg {
+func NewRequestVotesArg(r *State) *RequestVotesArg {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return &RequestVotesArg{
-		Term:        state.CurrentTerm,
-		CandidateId: state.Id,
+		Term:        r.CurrentTerm,
+		CandidateId: r.Id,
 		// todo: log index and term
 		LastLogIndex: 0,
 		LastLogTerm:  0,
@@ -37,6 +41,8 @@ func NewRequestVotesArg(state *State) *RequestVotesArg {
 }
 
 func checkRespTerm(r *Raft, term Term) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	if term > r.CurrentTerm {
 		r.CurrentTerm = term
 		return false
@@ -49,7 +55,6 @@ func (r *Raft) callRequestVotes(v *Voting) {
 	for _, peer := range r.Connectivity.Peers {
 		go func(peer *Peer) {
 			var reply RequestVotesReply
-			// todo: create voting request
 			args := NewRequestVotesArg(r.State)
 			err := peer.Call(methodRequestVotes, args, &reply)
 			// todo: check if vote response valid
@@ -91,7 +96,9 @@ func (r *Raft) callAppendEntries(apply chan<- struct{}, cancel chan<- error) {
 		// todo: modify to concurrent call after debug
 		err := peer.Call(methodAppendEntries, arg, &reply)
 		if checkRespTerm(r, reply.Term) {
+			r.mu.Lock()
 			r.Role.set(Follower)
+			r.mu.Unlock()
 			cancel <- fmt.Errorf("raft.callAppendEntries: currentTerm: %d, reply.term: %d", r.CurrentTerm, reply.Term)
 			close(cancel)
 		}

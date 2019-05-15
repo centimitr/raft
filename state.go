@@ -12,7 +12,7 @@ type State struct {
 	*Log
 	Leader *LeaderState
 
-	mutex sync.RWMutex
+	mu sync.RWMutex
 }
 
 func NewState() *State {

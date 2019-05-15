@@ -39,8 +39,8 @@ type Log struct {
 	LastApplied LogEntryIndex
 	LastIndex   LogEntryIndex
 
-	mutex sync.RWMutex
-	sm    StateMachine
+	mu sync.RWMutex
+	sm StateMachine
 }
 
 func NewLog(stateMachine StateMachine) *Log {
@@ -65,14 +65,19 @@ func newLogTx() *logTx {
 	}
 }
 
-// retrieve returns a LogEntry at given index.
-func (l *Log) retrieve(index LogEntryIndex) (entry *LogEntry) {
-	l.mutex.RLock()
+func (l *Log) retrieveWithoutLock(index LogEntryIndex) (entry *LogEntry) {
 	if int(index) < 0 || int(index) >= len(l.Entries) {
 		return nil
 	}
 	entry = l.Entries[index]
-	l.mutex.RUnlock()
+	return
+}
+
+// retrieve returns a LogEntry at given index.
+func (l *Log) retrieve(index LogEntryIndex) (entry *LogEntry) {
+	l.mu.RLock()
+	entry = l.retrieveWithoutLock(index)
+	l.mu.RUnlock()
 	return
 }
 
@@ -94,17 +99,19 @@ func (l *Log) match(index LogEntryIndex, wantedTerm Term) bool {
 
 // slice returns log entries after given index.
 func (l *Log) slice(startFrom LogEntryIndex) (entries []*LogEntry) {
-	l.mutex.RLock()
+	l.mu.RLock()
 	entries = l.Entries[startFrom:]
-	l.mutex.RUnlock()
+	l.mu.RUnlock()
 	return
 }
 
 // apply applies committed logs into the state machine.
 func (l *Log) apply() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	for l.CommitIndex > l.LastApplied {
 		l.LastApplied++
-		entry := l.retrieve(l.LastApplied)
+		entry := l.retrieveWithoutLock(l.LastApplied)
 		if entry != nil {
 			l.sm.Apply(entry.Command)
 		}
@@ -113,7 +120,7 @@ func (l *Log) apply() {
 
 // patch is used by followers to remove conflicts and append entries from the leader.
 func (l *Log) patch(prevLogIndex LogEntryIndex, entries []*LogEntry) {
-	l.mutex.Lock()
+	l.mu.Lock()
 	var pos int
 	for i, entry := range l.Entries {
 		if entry.Index == prevLogIndex {
@@ -122,13 +129,13 @@ func (l *Log) patch(prevLogIndex LogEntryIndex, entries []*LogEntry) {
 		}
 	}
 	l.Entries = append(l.Entries[:pos+1], entries...)
-	l.mutex.Unlock()
+	l.mu.Unlock()
 }
 
 // append executes a log transaction to append a new log entry, and then apply it.
 func (l *Log) append(term Term, cmd interface{}) (tx *logTx, err error) {
 	tx = newLogTx()
-	l.mutex.Lock()
+	l.mu.Lock()
 	e := newLogEntry(l.LastIndex+1, term, cmd)
 	// todo: save disk or make entries stable, committed
 	l.Entries = append(l.Entries, e)
@@ -141,7 +148,7 @@ func (l *Log) append(term Term, cmd interface{}) (tx *logTx, err error) {
 	// todo: eventually be applied to the state machine
 	<-tx.Apply
 	l.apply()
-	l.mutex.Unlock()
+	l.mu.Unlock()
 	close(tx.Done)
 	return
 }

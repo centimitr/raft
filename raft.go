@@ -9,7 +9,7 @@ import (
 const (
 	//DefaultRPCAddr = ":3456"
 	DefaultRPCAddr = ""
-	
+
 	HeartbeatTimeout = 50 * time.Millisecond
 )
 
@@ -60,8 +60,8 @@ func (r *Raft) Start() (err error) {
 		err = errors.New("raft: must bind a state machine before run")
 		return
 	}
+	// callbacks have been in locked state
 	r.Role.didSet(func() {
-		// todo: remove debug
 		log("role:", r.Role)
 		switch r.Role.typ {
 		case Follower:
@@ -82,18 +82,27 @@ func (r *Raft) Start() (err error) {
 			}()
 		}
 	})
+	// default start with a follower
+	r.mu.Lock()
 	r.Role.set(Follower)
+	r.mu.Unlock()
+
+	// connectivity
 	err = r.setupConnectivity()
-	r.Election.ResetTimer()
 	if err != nil {
 		err = fmt.Errorf("raft: %s", err)
 		return
 	}
+
+	// start election timeout
+	r.Election.ResetTimer()
 	go func() {
 		for {
 			select {
 			case <-r.Election.Timer.C:
+				r.mu.Lock()
 				r.Role.set(Candidate)
+				r.mu.Unlock()
 			case <-r.Quit:
 				break
 			}
@@ -103,10 +112,14 @@ func (r *Raft) Start() (err error) {
 }
 
 func (r *Raft) Apply(command interface{}) (err error) {
+	// create log append entry transaction
+	r.mu.RLock()
 	tx, err := r.Log.append(r.CurrentTerm, command)
+	r.mu.RUnlock()
 	if err != nil {
 		return
 	}
+	// call peers to append entries
 	go r.callAppendEntries(tx.Apply, tx.Cancel)
 	select {
 	case err := <-tx.Cancel:

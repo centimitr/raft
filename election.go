@@ -45,28 +45,31 @@ func (e *Election) Abandon() {
 func (e *Election) Start() (win bool) {
 	log("elect: start")
 	e.Processing = true
+
+	// new term for election, support self
 	e.r.CurrentTerm++
 	e.r.VotedFor = e.r.Id
 
+	// create a new voting, vote self
 	v := new(Voting)
 	e.currentVoting = v
 	v.Start(len(e.r.Connectivity.Peers) + 1)
 	v.Approve()
+
+	// request votes from peers
 	e.r.callRequestVotes(v)
 
 	select {
 	case <-v.Done:
 		win = v.Win()
 		log("elect: done", v.Win(), v.total, v.approves, v.rejects)
-	//case <-v.Timeout:
-	//	log("elect: timeout")
-	//	time.Sleep(randomElectionInterval())
-	//	win = e.Start()
 	case <-v.Cancel:
 		log("elect: cancel")
 	}
 	if !win {
+		// clear current support candidate
 		e.r.VotedFor = ""
+		// wait for next election
 		e.ResetTimer()
 	}
 	log("elect: end")

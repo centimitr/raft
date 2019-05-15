@@ -5,16 +5,11 @@ type Voting struct {
 	approves, rejects int
 	Done              chan struct{}
 	Cancel            chan struct{}
-	//Timeout           chan struct{}
 }
 
 func (v *Voting) Start(total int) {
 	v.Done = make(chan struct{})
-	//v.Timeout = make(chan struct{})
 	v.Cancel = make(chan struct{})
-	//time.AfterFunc(VotingTimeout, func() {
-	//	close(v.Timeout)
-	//})
 	v.total = total
 	v.approves, v.rejects = 0, 0
 }
