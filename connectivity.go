@@ -41,6 +41,10 @@ func (c *Connectivity) Port() int {
 	return c.listener.Addr().(*net.TCPAddr).Port
 }
 
+func (c *Connectivity) PeersCount() int {
+	return len(c.Peers)
+}
+
 func (c *Connectivity) handleUpdates() {
 	for peers := range c.PeersUpdate {
 		c.ConnectPeers(peers)

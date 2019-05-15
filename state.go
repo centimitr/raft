@@ -36,6 +36,15 @@ func (ls *LeaderState) Reset() {
 	ls.matchIndex = sync.Map{}
 }
 
+func (ls *LeaderState) DecreaseNextIndex(id PeerId) {
+	ls.nextIndex.Store(id, ls.NextIndex(id)-1)
+}
+
+func (ls *LeaderState) Update(id PeerId, nextIndex, matchIndex LogEntryIndex) {
+	ls.nextIndex.Store(id, nextIndex)
+	ls.matchIndex.Store(id, matchIndex)
+}
+
 func (ls *LeaderState) NextIndex(id PeerId) LogEntryIndex {
 	v, _ := ls.nextIndex.LoadOrStore(id, ls.log.NextIndex())
 	return v.(LogEntryIndex)

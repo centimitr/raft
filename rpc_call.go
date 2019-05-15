@@ -2,6 +2,7 @@ package raft
 
 import (
 	"fmt"
+	"time"
 )
 
 const (
@@ -22,9 +23,9 @@ func NewHeartbeatArg(r *State, peer *Peer) *AppendEntriesArg {
 	}
 }
 
-func NewAppendEntriesArg(state *State, peer *Peer) *AppendEntriesArg {
-	arg := NewHeartbeatArg(state, peer)
-	arg.Entries = state.Log.slice(state.Leader.NextIndex(peer.Id))
+func NewAppendEntriesArg(r *State, peer *Peer) *AppendEntriesArg {
+	arg := NewHeartbeatArg(r, peer)
+	arg.Entries = r.Log.slice(r.Leader.NextIndex(peer.Id))
 	return arg
 }
 
@@ -40,11 +41,12 @@ func NewRequestVotesArg(r *State) *RequestVotesArg {
 	}
 }
 
-func checkRespTerm(r *Raft, term Term) bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+func checkRespTerm(r *Raft, term Term) (ok bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if term > r.CurrentTerm {
 		r.CurrentTerm = term
+		r.Role.set(Follower)
 		return false
 	}
 	return true
@@ -73,7 +75,7 @@ func (r *Raft) callRequestVotes(v *Voting) {
 
 // callDeclareLeader sends heartbeats to followers to keep them followers
 func (r *Raft) callDeclareLeader() {
-	log("broadcast: heartbeats")
+	//log("broadcast: heartbeats")
 	for _, p := range r.Connectivity.Peers {
 		var arg = NewHeartbeatArg(r.State, p)
 		var reply AppendEntriesReply
@@ -84,31 +86,57 @@ func (r *Raft) callDeclareLeader() {
 }
 
 // callAppendEntries tries to append log entries to followers
-func (r *Raft) callAppendEntries(apply chan<- struct{}, cancel chan<- error) {
-	peers := make(chan *Peer, len(r.Connectivity.Peers))
+func (r *Raft) callAppendEntries(tx *LogTx) {
+	peersCount := r.Connectivity.PeersCount()
+	// when there is no other node, try commit directly
+	if peersCount == 0 {
+		ok := r.UpdateCommitIndex(r.CurrentTerm, r.Connectivity.PeersCount(), r.Leader)
+		if ok {
+			close(tx.Done)
+		}
+	}
+	peers := make(chan *Peer, peersCount)
 	for _, peer := range r.Connectivity.Peers {
 		peers <- peer
 	}
-	cnt := 0
-	for peer := range peers {
-		arg := NewAppendEntriesArg(r.State, peer)
+	for p := range peers {
+		// skip if a peer is disconnected
+		if !r.Connectivity.HasConnectedPeer(p) {
+			continue
+		}
+		// start call append
+		arg := NewAppendEntriesArg(r.State, p)
+		println("NEW APPEND")
+		fmt.Printf("%+v\n", arg)
 		var reply AppendEntriesReply
 		// todo: modify to concurrent call after debug
-		err := peer.Call(methodAppendEntries, arg, &reply)
+		err := p.Call(methodAppendEntries, arg, &reply)
+		// communication fail
+		if err != nil {
+			go func(p *Peer) {
+				time.Sleep(50 * time.Millisecond)
+				peers <- p
+			}(p)
+			continue
+		}
+		// if follower responds higher term, convert to follower
 		if checkRespTerm(r, reply.Term) {
-			r.mu.Lock()
-			r.Role.set(Follower)
-			r.mu.Unlock()
-			cancel <- fmt.Errorf("raft.callAppendEntries: currentTerm: %d, reply.term: %d", r.CurrentTerm, reply.Term)
-			close(cancel)
+			tx.Cancel <- fmt.Errorf("raft.callAppendEntries: currentTerm: %d, reply.term: %d", r.CurrentTerm, reply.Term)
+			close(tx.Cancel)
+			break
 		}
-		if err != nil || !reply.Success {
-			peers <- peer
-		}
-		// todo: check how to handle reply.Term
-		cnt++
-		if cnt >= len(r.Connectivity.Peers) {
-			close(apply)
+		// inconsistency
+		if !reply.Success {
+			r.Leader.DecreaseNextIndex(p.Id)
+		} else
+		//	append successfully
+		{
+			lastEntry := arg.Entries[len(arg.Entries)-1]
+			r.Leader.Update(p.Id, lastEntry.Index+1, lastEntry.Index)
+			ok := r.UpdateCommitIndex(arg.Term, len(r.Connectivity.Peers), r.Leader)
+			if ok {
+				close(tx.Done)
+			}
 		}
 	}
 }

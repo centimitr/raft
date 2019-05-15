@@ -48,6 +48,9 @@ func checkReqTerm(r *Raft, term Term) bool {
 }
 
 func (r *Raft) appendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) (err error) {
+	fmt.Println("CALL APPEND", len(arg.Entries))
+	fmt.Printf("%+v\n", arg)
+
 	r.mu.RLock()
 	reply.Term = r.CurrentTerm
 	r.mu.RUnlock()
@@ -66,23 +69,19 @@ func (r *Raft) appendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) (e
 		panic("debug: heartbeats should keep node followers")
 		return
 	}
+	if len(arg.Entries) != 0 {
+		fmt.Println("RECV APPEND")
+		fmt.Printf("%+v\n", arg)
+	}
 	// todo: check conflicts, append new entries
-	r.Log.patch(arg.PrevLogIndex, arg.Entries)
-	// log heartbeats
-	if len(arg.Entries) == 0 {
-		log("recv: heartbeats")
+	if len(arg.Entries) > 0 {
+		r.Log.patch(arg.PrevLogIndex, arg.Entries)
+		// log heartbeats
+		//if len(arg.Entries) == 0 {
+		//log("recv: heartbeats")
+		//}
+		r.Log.UpdateCommitIndexFromLeader(arg.LeaderCommit)
 	}
-	r.mu.Lock()
-	if arg.LeaderCommit > r.CommitIndex {
-		if r.Log.LastIndex < arg.LeaderCommit {
-			r.CommitIndex = r.Log.LastIndex
-		} else {
-			r.CommitIndex = arg.LeaderCommit
-		}
-		// todo: check
-		go r.Log.apply()
-	}
-	r.mu.Unlock()
 	reply.Success = true
 	return
 }

@@ -24,7 +24,7 @@ func NewElection(r *Raft) *Election {
 func randomElectionTimeout() time.Duration {
 	s := rand.NewSource(time.Now().UnixNano())
 	r := rand.New(s)
-	return time.Duration(150+r.Intn(150)) * time.Millisecond
+	return time.Duration(150+r.Intn(150)*10) * time.Millisecond
 }
 
 func (e *Election) ResetTimer() {

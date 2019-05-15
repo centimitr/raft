@@ -10,7 +10,7 @@ const (
 	//DefaultRPCAddr = ":3456"
 	DefaultRPCAddr = ""
 
-	HeartbeatTimeout = 50 * time.Millisecond
+	HeartbeatTimeout = 100 * time.Millisecond
 )
 
 type Config struct {
@@ -100,6 +100,7 @@ func (r *Raft) Start() (err error) {
 		for {
 			select {
 			case <-r.Election.Timer.C:
+				println("TIMEOUT")
 				r.mu.Lock()
 				r.Role.set(Candidate)
 				r.mu.Unlock()
@@ -112,15 +113,22 @@ func (r *Raft) Start() (err error) {
 }
 
 func (r *Raft) Apply(command interface{}) (err error) {
-	// create log append entry transaction
 	r.mu.RLock()
-	tx, err := r.Log.append(r.CurrentTerm, command)
+	role := r.Role
+	term := r.CurrentTerm
 	r.mu.RUnlock()
+	// refuse if not a leader
+	if !role.Is(Leader) {
+		return errors.New("raft: Apply requires being a leader")
+	}
+	// create log append entry transaction
+	tx, err := r.Log.append(term, command)
+	println(r.Log.Entries)
 	if err != nil {
 		return
 	}
 	// call peers to append entries
-	go r.callAppendEntries(tx.Apply, tx.Cancel)
+	go r.callAppendEntries(tx)
 	select {
 	case err := <-tx.Cancel:
 		return err

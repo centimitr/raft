@@ -51,32 +51,32 @@ func NewLog(stateMachine StateMachine) *Log {
 	return l
 }
 
-type logTx struct {
+type LogTx struct {
 	Cancel chan error
 	Apply  chan struct{}
 	Done   chan struct{}
 }
 
-func newLogTx() *logTx {
-	return &logTx{
+func newLogTx() *LogTx {
+	return &LogTx{
 		Cancel: make(chan error),
 		Apply:  make(chan struct{}),
 		Done:   make(chan struct{}),
 	}
 }
 
-func (l *Log) retrieveWithoutLock(index LogEntryIndex) (entry *LogEntry) {
-	if int(index) < 0 || int(index) >= len(l.Entries) {
+func retrieve(entries []*LogEntry, index LogEntryIndex) (entry *LogEntry) {
+	if int(index) < 0 || int(index) >= len(entries) {
 		return nil
 	}
-	entry = l.Entries[index]
+	entry = entries[index]
 	return
 }
 
 // retrieve returns a LogEntry at given index.
 func (l *Log) retrieve(index LogEntryIndex) (entry *LogEntry) {
 	l.mu.RLock()
-	entry = l.retrieveWithoutLock(index)
+	entry = retrieve(l.Entries, index)
 	l.mu.RUnlock()
 	return
 }
@@ -111,7 +111,7 @@ func (l *Log) apply() {
 	defer l.mu.Unlock()
 	for l.CommitIndex > l.LastApplied {
 		l.LastApplied++
-		entry := l.retrieveWithoutLock(l.LastApplied)
+		entry := retrieve(l.Entries, l.LastApplied)
 		if entry != nil {
 			l.sm.Apply(entry.Command)
 		}
@@ -133,27 +133,62 @@ func (l *Log) patch(prevLogIndex LogEntryIndex, entries []*LogEntry) {
 }
 
 // append executes a log transaction to append a new log entry, and then apply it.
-func (l *Log) append(term Term, cmd interface{}) (tx *logTx, err error) {
+func (l *Log) append(term Term, cmd interface{}) (tx *LogTx, err error) {
 	tx = newLogTx()
 	l.mu.Lock()
 	e := newLogEntry(l.LastIndex+1, term, cmd)
 	// todo: save disk or make entries stable, committed
 	l.Entries = append(l.Entries, e)
 	l.LastIndex = e.Index
-	// todo: stable storage error
-	//if err != nil {
-	//	return
-	//}
 	l.CommitIndex = e.Index
-	// todo: eventually be applied to the state machine
-	<-tx.Apply
-	l.apply()
 	l.mu.Unlock()
-	close(tx.Done)
 	return
 }
 
 // NextIndex returns the upcoming log entry's index
 func (l *Log) NextIndex() LogEntryIndex {
 	return l.LastIndex + 1
+}
+
+func (l *Log) UpdateCommitIndex(currentTerm Term, peerCount int, ls *LeaderState) (ok bool) {
+	l.mu.Lock()
+	// when there is no peer, update commit index to latest directly
+	// this is for development compatibility, not a use case
+	if peerCount == 0 {
+		l.CommitIndex = l.LastIndex
+		ok = true
+	}
+	// from the log entry next to current commit index, find an index N that most followers can match
+	for i := l.CommitIndex + 1; i <= l.LastIndex; i++ {
+		entry := retrieve(l.Entries, i)
+		if entry.Term != currentTerm {
+			continue
+		}
+		cnt := 0
+		ls.matchIndex.Range(func(key, value interface{}) bool {
+			idx := value.(LogEntryIndex)
+			if idx > i {
+				cnt++
+			}
+			return true
+		})
+		if cnt*2 > peerCount {
+			l.CommitIndex = i
+			ok = true
+		}
+	}
+	l.mu.Unlock()
+	go l.apply()
+	return
+}
+
+func (l *Log) UpdateCommitIndexFromLeader(leaderCommit LogEntryIndex) {
+	if leaderCommit > l.CommitIndex {
+		if l.LastIndex < leaderCommit {
+			l.CommitIndex = l.LastIndex
+		} else {
+			l.CommitIndex = leaderCommit
+		}
+		go l.apply()
+	}
 }
