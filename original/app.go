@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"github.com/devbycm/raft"
 	"github.com/devbycm/ssdr"
+	"time"
 )
 
 func register(svcAddr string, id string, peersUpdate chan<- []*raft.Peer) (err error) {
@@ -24,10 +26,23 @@ func register(svcAddr string, id string, peersUpdate chan<- []*raft.Peer) (err e
 	return
 }
 
-func app(kv *raft.KV) (err error) {
+type model struct {
+	*raft.KV
+}
+
+func newModel() *model {
+	return &model{
+		KV: new(raft.KV),
+	}
+}
+
+func app() (err error) {
+	m := newModel()
+	_ = m
+
 	// raft: bind state machine
 	r := raft.New(raft.Config{})
-	r.BindStateMachine(kv)
+	r.BindStateMachine(m)
 
 	err = r.Start()
 	if check(err, "start") {
@@ -44,22 +59,50 @@ func app(kv *raft.KV) (err error) {
 		return
 	}
 
-	<-r.Quit
-	//r.OnRoleChange = func() {
-	//	srp.NewServer("", s.Addr())
-	//}
+	a := false
+	a = true
+	a = false
+	go func() {
+		time.Sleep(1 * time.Second)
+		for {
+			if a {
+				time.Sleep(time.Second)
+				now := time.Now().String()
+				fmt.Println("set:", now)
+				_ = m.Set("time", now)
+				fmt.Println("SET SUCCESSFULLY")
+			} else {
+				v, _ := m.Get("time")
+				fmt.Println("get:", v)
+			}
+			time.Sleep(3 * time.Second)
+		}
+	}()
 
+	<-r.Quit
+	//
+	//upgrader := websocket.Upgrader{}
+	//upgrader.CheckOrigin = func(r *http.Request) bool {
+	//	return true
+	//}
+	//
+	//var conn *websocket.Conn
+	//go func() {
+	//	for {
+	//		if conn != nil {
+	//			_ = conn.WriteJSON(time.Now().UnixNano())
+	//		}
+	//		time.Sleep(time.Second)
+	//	}
+	//}()
+	//
 	//s := gin.New()
-	//s.GET("/add", func(context *gin.Context) {
-	//
-	//})
 	//s.NoRoute(func(c *gin.Context) {
-	//	v, _ := kv.GetDefault("cnt", 0)
-	//	c.String(http.StatusOK, strconv.Itoa(v.(int)))
+	//	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	//	fmt.Println(err)
 	//})
+	//_ = s.Run(":3000")
 	//
-	// service: listen
-	//err = http.ListenAndServe(":3000", s)
 	//check(err)
 	return
 }
