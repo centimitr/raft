@@ -1,56 +1,90 @@
 package raft
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
-type State struct {
-	Role Role
-	Id   NodeId
+// type aliases help understand variables
+type NodeIndex = int
+type Role = int
+type Term = int
+type LogEntryIndex = int
 
+const (
+	Follower Role = iota
+	Candidate
+	Leader
+)
+
+// Peer is a general interface for RPC client endpoints
+// It can be used to replace the original RPC with a testable one
+type Peer interface {
+	Call(method string, arg interface{}, reply interface{}) error
+}
+
+// Config stores config for raft
+type Config struct {
+	ElectionTimeout  time.Duration
+	HeartbeatTimeout time.Duration
+}
+
+// Raft
+type Raft struct {
+	Config
+
+	peers      []Peer
+	peersCount int
+	StableStore
+
+	Id          NodeIndex
+	Role        Role
 	CurrentTerm Term
-	VotedFor    NodeId
 
-	*Log
-	Leader *LeaderState
+	apply chan ApplyMsg
 
-	mu sync.RWMutex
+	Log
+	progress
+	election
+
+	shutdown chan struct{}
+	mu       sync.Mutex
 }
 
-func NewState() *State {
-	s := new(State)
-	s.Id = NewNodeId()
-	return s
+func (r *Raft) becomeFollower() {
+	r.Role = Follower
+	r.VotedFor = -1
 }
 
-type LeaderState struct {
-	log        *Log
-	nextIndex  sync.Map
-	matchIndex sync.Map
+func (r *Raft) init() {
+	r.becomeFollower()
+
+	r.Log.init(&r.mu)
+	r.progress.init(r.peersCount)
+	r.election.init(r.Config.ElectionTimeout)
+
+	r.shutdown = make(chan struct{})
 }
 
-func newLeaderState(l *Log) *LeaderState {
-	return &LeaderState{log: l}
+// forEachPeer iterate over peer nodes.
+func (r *Raft) forEachPeer(fn func(peerIndex NodeIndex)) {
+	for i := 0; i < r.peersCount; i++ {
+		if i != r.Id {
+			fn(i)
+		}
+	}
 }
 
-func (ls *LeaderState) Reset() {
-	ls.nextIndex = sync.Map{}
-	ls.matchIndex = sync.Map{}
+// IsLeader is concurrent safe to user by outer service.
+func (r *Raft) IsLeader() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.Role == Leader
 }
 
-func (ls *LeaderState) DecreaseNextIndex(id PeerId) {
-	ls.nextIndex.Store(id, ls.NextIndex(id)-1)
-}
-
-func (ls *LeaderState) Update(id PeerId, nextIndex, matchIndex LogEntryIndex) {
-	ls.nextIndex.Store(id, nextIndex)
-	ls.matchIndex.Store(id, matchIndex)
-}
-
-func (ls *LeaderState) NextIndex(id PeerId) LogEntryIndex {
-	v, _ := ls.nextIndex.LoadOrStore(id, ls.log.NextIndex())
-	return v.(LogEntryIndex)
-}
-
-func (ls *LeaderState) MatchIndex(id PeerId) LogEntryIndex {
-	v, _ := ls.matchIndex.LoadOrStore(id, LogEntryIndex(0))
-	return v.(LogEntryIndex)
+// CheckLeadership help outer service's async operations check leadership.
+func (r *Raft) CheckLeadership(term Term) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.Role == Leader && r.CurrentTerm == term
 }

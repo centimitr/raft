@@ -2,137 +2,76 @@ package raft
 
 import (
 	"errors"
-	"fmt"
+	"math/rand"
 	"time"
 )
 
-const (
-	//DefaultRPCAddr = ":3456"
-	DefaultRPCAddr = ""
-
-	HeartbeatTimeout = 100 * time.Millisecond
+var (
+	ErrNotLeader = errors.New("kv: current node not a leader")
 )
 
-type Config struct {
-	RPCAddr string
-}
+func NewRaft(peers []Peer, me NodeIndex, store StableStore, applyCh chan ApplyMsg) *Raft {
+	r := &Raft{
+		Config: Config{
+			ElectionTimeout:  time.Millisecond * time.Duration(500+rand.Intn(100)*5),
+			HeartbeatTimeout: 50 * time.Millisecond,
+		},
+		peers:       peers,
+		peersCount:  len(peers),
+		StableStore: store,
+		Id:          me,
+		apply:       applyCh,
+	}
+	r.init()
 
-type Events struct {
-	OnRoleChange handler
-}
+	r.Restore()
+	r.Log.LastApplied = r.Snapshot.LastIncludedIndex
+	r.Log.CommitIndex = r.Snapshot.LastIncludedIndex
 
-type Raft struct {
-	*State
-	*Events
-	Config       *Config
-	Connectivity *Connectivity
-	Election     *Election
-	Quit         chan struct{}
-}
-
-func New(c Config) *Raft {
-	return new(Raft).Init(&c)
-}
-
-func (r *Raft) Init(c *Config) *Raft {
-	r.State = NewState()
-	r.Config = c
-	r.Connectivity = NewConnectivity()
-	r.Election = NewElection(r)
-	r.Quit = make(chan struct{})
+	r.log("up: term: %d", r.CurrentTerm)
 	return r
 }
 
-func (r *Raft) BindStateMachine(stateMachine StateMachine) {
-	r.Log = NewLog(stateMachine)
-	r.Leader = newLeaderState(r.Log)
-	stateMachine.Delegate(r)
+func (r *Raft) Run() {
+	go r.electionLoop()
+	go r.applyLoop()
 }
 
-func (r *Raft) setupConnectivity() (err error) {
-	addr := DefaultString(r.Config.RPCAddr, DefaultRPCAddr)
-	err = r.Connectivity.ListenAndServe("Raft", NewRPCDelegate(r), addr)
-	return
+func (r *Raft) Shutdown() {
+	close(r.shutdown)
+	r.commitCond.Broadcast()
 }
 
-func (r *Raft) Start() (err error) {
-	if r.Log == nil {
-		err = errors.New("raft: must bind a state machine before run")
-		return
-	}
-	// callbacks have been in locked state
-	r.Role.didSet(func() {
-		log("role:", r.Role)
-		switch r.Role.typ {
-		case Follower:
-			r.VotedFor = ""
-		case Candidate:
-			win := r.Election.Start()
-			if win {
-				r.Role.set(Leader)
-			}
-		case Leader:
-			r.Leader.Reset()
-			go func() {
-				for {
-					// todo: heartbeat
-					r.callDeclareLeader()
-					time.Sleep(HeartbeatTimeout)
-				}
-			}()
-		}
-	})
-	// default start with a follower
-	r.mu.Lock()
-	r.Role.set(Follower)
-	r.mu.Unlock()
-
-	// connectivity
-	err = r.setupConnectivity()
-	if err != nil {
-		err = fmt.Errorf("raft: %s", err)
-		return
-	}
-
-	// start election timeout
-	r.Election.ResetTimer()
-	go func() {
-		for {
-			select {
-			case <-r.Election.Timer.C:
-				println("TIMEOUT")
-				r.mu.Lock()
-				r.Role.set(Candidate)
-				r.mu.Unlock()
-			case <-r.Quit:
-				break
-			}
-		}
-	}()
-	return
+type ApplyReceipt struct {
+	Term  Term
+	Index LogEntryIndex
+	Err   error
 }
 
-func (r *Raft) Apply(command interface{}) (err error) {
-	r.mu.RLock()
-	role := r.Role
-	term := r.CurrentTerm
-	r.mu.RUnlock()
-	// refuse if not a leader
-	if !role.Is(Leader) {
-		return errors.New("raft: Apply requires being a leader")
-	}
-	// create log append entry transaction
-	tx, err := r.Log.append(term, command)
-	println(r.Log.Entries)
-	if err != nil {
-		return
-	}
-	// call peers to append entries
-	go r.callAppendEntries(tx)
+func (r *Raft) Apply(command interface{}) (receipt ApplyReceipt) {
+	receipt.Index = -1
 	select {
-	case err := <-tx.Cancel:
-		return err
-	case <-tx.Done:
+	case <-r.shutdown:
 		return
+	default:
+		r.mu.Lock()
+		defer r.mu.Unlock()
+
+		if r.Role != Leader {
+			receipt.Err = ErrNotLeader
+			return
+		}
+
+		r.Log.append(r.CurrentTerm, command)
+
+		lastIndex := r.Log.lastIndex()
+		r.log("append: {%d: %v}", lastIndex, command)
+
+		receipt.Index = lastIndex
+		receipt.Term = r.CurrentTerm
+
+		r.progress.update(r.Id, lastIndex)
+		r.Store()
 	}
+	return
 }
