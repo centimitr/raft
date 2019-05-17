@@ -4,7 +4,16 @@ import (
 	"sync"
 )
 
-// simulated stable StableStore
+type StableStore interface {
+	LoadStatus() ([]byte, error)
+	LoadSnapshot() ([]byte, error)
+	StoreStatus([]byte) error
+	StoreSnapshot([]byte) error
+	StateSize() int
+}
+
+// simulated StableStore
+// todo: replace with a local db
 type Archive struct {
 	// should replace with IO
 	data sync.Map
@@ -40,12 +49,4 @@ func (a *Archive) StoreSnapshot(data []byte) error {
 func (a *Archive) StateSize() int {
 	state, _ := a.LoadStatus()
 	return len(state)
-}
-
-type StableStore interface {
-	LoadStatus() ([]byte, error)
-	LoadSnapshot() ([]byte, error)
-	StoreStatus([]byte) error
-	StoreSnapshot([]byte) error
-	StateSize() int
 }

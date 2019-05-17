@@ -16,28 +16,31 @@ import (
 
 func main() {
 	new(scli.App).
-		Action(":registry :service", kv).
+		Action(":registry :service", start).
 		Run()
 }
 
-func kv(c *scli.Context) {
+func start(c *scli.Context) {
 	var err error
 
-	// random ID for registry
+	// random ID for publishing raft service
 	id := uuid.New().String()
 	log.Println("id:", id)
 
-	// new connectivity and RPC delegate
+	// Connectivity wraps a RPC listener
+	// RPC delegate is published to RPC registry
 	connectivity := new(raft.Connectivity)
 	delegate := new(raft.RPCDelegate)
 
 	// publish RPC service
 	err = connectivity.ListenAndServe("Raft", delegate, "")
 	check(err)
+
+	// retrieve the actual RPC address
 	rpcAddr := fmt.Sprintf("localhost:%d", connectivity.Port())
 	log.Println("rpcAddr:", rpcAddr)
 
-	// register to registry
+	// call registry to record this RPC node
 	u := &url.URL{
 		Scheme: "http",
 		Host:   "localhost" + c.Get("registry"),
@@ -53,7 +56,8 @@ func kv(c *scli.Context) {
 	_, err = http.DefaultClient.Do(req)
 	check(err)
 
-	// check registry for ConnectInfo
+	// poll registry to ensure that at least 5 raft nodes are ready
+	// retrieve the addresses of other nodes
 	var connectInfo raft.ConnectInfo
 	for {
 		time.Sleep(time.Second)
@@ -74,11 +78,10 @@ func kv(c *scli.Context) {
 		}
 		break
 	}
-
 	log.Printf("RECV %+v\n", connectInfo)
 	log.Println("current:", connectInfo.Addrs[connectInfo.Index])
 
-	// get peers
+	// connect others nodes
 	peers := make([]raft.Peer, len(connectInfo.Addrs))
 	for i, addr := range connectInfo.Addrs {
 		if i == connectInfo.Index {
@@ -88,39 +91,19 @@ func kv(c *scli.Context) {
 		check(err)
 	}
 
-	//kv
-	//store := raft.MakePersister()
+	// create kv service as a state machine for application logic
 	store := new(raft.Archive)
 	kv := raft.NewKV(peers, connectInfo.Index, store, 1<<31)
+
 	delegate.Raft = kv.Raft
-
-	time.Sleep(3 * time.Second)
+	// todo: rafactor this timeout by calling registry to block
+	// wait RPC delegates on other nodes have been set
+	time.Sleep(time.Second)
 	kv.Run()
-	time.Sleep(3 * time.Second)
 
-	//var v string
-
-	//v, err = kv.Get("a")
-	//log.Println(err)
-	//log.Println("v:", v)
-
-	for {
-		log.Println("IsLeader:", kv.Raft.IsLeader())
-
-		//err = kv.Set("a", "X")
-		//log.Println(err)
-		//
-		time.Sleep(5 * time.Second)
-
-		//v, err = kv.Get("a")
-		//log.Println(err)
-		//log.Println("v:", v)
-	}
-
-	// service
-	//r := gin.New()
-	//
-	//addr := c.Get("service")
-	//log.Println("running:", addr)
-	//check(r.Run(addr))
+	// create server and listen
+	s := newServer(kv)
+	addr := c.Get("service")
+	log.Println("running:", addr)
+	check(s.Run(addr))
 }

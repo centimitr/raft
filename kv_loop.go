@@ -22,6 +22,7 @@ func (kv *KV) loop() {
 			}
 
 			cmd := msg.Command.(cmd)
+
 			kv.mu.Lock()
 			switch cmd.Type {
 			case cmdGet:
@@ -44,7 +45,6 @@ func (kv *KV) loop() {
 				close(ch)
 				delete(kv.notify, msg.Index)
 			}
-
 			kv.mu.Unlock()
 		}
 	}

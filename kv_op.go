@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-type cmdType string
+type cmdType = string
 
 const (
 	cmdGet cmdType = "get"
@@ -57,11 +57,16 @@ func (kv *KV) request(typ cmdType, k, v string) (value string, err error) {
 	return
 }
 
-func (kv *KV) Get(key string) (value string, err error) {
-	return kv.request(cmdGet, key, "")
+func (kv *KV) GetDirty(k string) (v string, ok bool) {
+	v, ok = kv.m[k]
+	return
 }
 
-func (kv *KV) Set(key, value string) (err error) {
-	_, err = kv.request(cmdGet, key, value)
+func (kv *KV) Get(k string) (v string, err error) {
+	return kv.request(cmdGet, k, "")
+}
+
+func (kv *KV) Set(k, v string) (err error) {
+	_, err = kv.request(cmdSet, k, v)
 	return
 }
