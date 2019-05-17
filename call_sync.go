@@ -25,12 +25,12 @@ func (r *Raft) callSync(peerIndex LogEntryIndex) {
 
 	// send Snapshot
 	if preLogIndex < r.Snapshot.LastIncludedIndex {
-		r.sendSnapshot(peerIndex)
+		r.callSnapshot(peerIndex)
 		return
 	}
 
 	// send entries
-	var arg = AppendEntriesArg{
+	var arg = &AppendEntriesArg{
 		Term:         r.CurrentTerm,
 		LeaderID:     r.Id,
 		PrevLogIndex: preLogIndex,
@@ -47,9 +47,11 @@ func (r *Raft) callSync(peerIndex LogEntryIndex) {
 	go func() {
 		r.log("callSync: %d", peerIndex)
 		var reply AppendEntriesReply
-		if r.sendAppendEntries(peerIndex, &arg, &reply) {
-			r.handleSyncReply(peerIndex, &reply)
-		}
+		err := r.peers[peerIndex].Call("Raft.AppendEntries", arg, &reply)
+		if err != nil {
+			return
+		}¬¬
+		r.handleSyncReply(peerIndex, &reply)
 	}()
 }
 
@@ -98,7 +100,7 @@ func (r *Raft) handleSyncReply(peerIndex NodeIndex, reply *AppendEntriesReply) {
 	lastSnapshotIndex := r.Log.Snapshot.LastIncludedIndex
 	needSnapshot := lastSnapshotIndex != 0 && r.progress.NextIndex[peerIndex] <= lastSnapshotIndex
 	if needSnapshot {
-		r.sendSnapshot(peerIndex)
+		r.callSnapshot(peerIndex)
 	} else {
 		nextIndex := r.progress.NextIndex[peerIndex]
 		lowerBound := max(nextIndex, r.Log.firstIndex())

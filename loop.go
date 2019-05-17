@@ -80,6 +80,7 @@ func (r *Raft) applyLoop() {
 			r.apply <- msg
 		}
 
+		// todo: check
 		//for i := 0; i < commitIndex-lastApplied; i++ {
 		//	current command is replicated, ignore nil command
 		//reply := ApplyMsg{

@@ -13,15 +13,14 @@ func (r *Raft) Store() {
 	_ = e.Encode(r.Log.Logs)
 	_ = e.Encode(r.Log.Snapshot.LastIncludedIndex)
 	_ = e.Encode(r.Log.Snapshot.LastIncludedTerm)
-	r.store.SaveRaftState(buf.Bytes())
+	_ = r.store.StoreStatus(buf.Bytes())
 }
 
 func (r *Raft) Restore() {
-	data := r.store.ReadRaftState()
+	data, _ := r.store.LoadStatus()
 	if data == nil || len(data) == 0 {
 		return
 	}
-
 	buf := bytes.NewBuffer(data)
 	d := gob.NewDecoder(buf)
 	_ = d.Decode(&r.CurrentTerm)

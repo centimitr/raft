@@ -8,7 +8,7 @@ import (
 
 var ErrNotLeader = errors.New("raft: current node is not a leader")
 
-func NewRaft(peers []*Peer, me NodeIndex, store Store, applyCh chan ApplyMsg) *Raft {
+func NewRaft(peers []Peer, me NodeIndex, store Store, applyCh chan ApplyMsg) *Raft {
 	r := &Raft{
 		Config: Config{
 			ElectionTimeout:  time.Millisecond * time.Duration(500+rand.Intn(100)*5),

@@ -10,7 +10,8 @@ func (r *Raft) resetProgress() {
 }
 
 func (r *Raft) callElection() {
-	var arg RequestVoteArg
+	arg := new(RequestVoteArg)
+
 	r.mu.Lock()
 	r.VotedFor = r.Id
 	r.CurrentTerm += 1
@@ -22,12 +23,11 @@ func (r *Raft) callElection() {
 	arg.LastLogTerm = r.Log.last().Term
 	r.mu.Unlock()
 
-	peersCount := r.peersCount
-
 	votes := 1
 	handle := func(reply *RequestVoteReply) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
+
 		if r.Role != Candidate {
 			return
 		}
@@ -39,7 +39,7 @@ func (r *Raft) callElection() {
 			return
 		}
 		if reply.VoteGranted {
-			if votes >= peersCount/2 {
+			if votes >= r.peersCount/2 {
 				r.log("become leader")
 				r.Role = Leader
 				r.resetProgress()
@@ -52,9 +52,11 @@ func (r *Raft) callElection() {
 	r.forEachPeer(func(peerIndex NodeIndex) {
 		go func() {
 			var reply RequestVoteReply
-			if r.sendRequestVote(peerIndex, &arg, &reply) {
-				handle(&reply)
+			err := r.peers[peerIndex].Call("Raft.RequestVote", arg, &reply)
+			if err != nil {
+				return
 			}
+			handle(&reply)
 		}()
 	})
 }

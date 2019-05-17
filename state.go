@@ -16,6 +16,10 @@ const (
 	Leader
 )
 
+type Peer interface {
+	Call(method string, arg interface{}, reply interface{}) error
+}
+
 // Config
 type Config struct {
 	ElectionTimeout  time.Duration
@@ -26,7 +30,7 @@ type Config struct {
 type Raft struct {
 	Config
 
-	peers      []*Peer
+	peers      []Peer
 	peersCount int
 	store      Store
 
