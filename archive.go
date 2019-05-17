@@ -42,10 +42,10 @@ func (a *Archive) StateSize() int {
 	return len(state)
 }
 
-//type StableStore interface {
-//	LoadStatus() ([]byte, error)
-//	LoadSnapshot() ([]byte, error)
-//	StoreStatus([]byte) error
-//	StoreSnapshot([]byte) error
-//	StateSize() int
-//}
+type StableStore interface {
+	LoadStatus() ([]byte, error)
+	LoadSnapshot() ([]byte, error)
+	StoreStatus([]byte) error
+	StoreSnapshot([]byte) error
+	StateSize() int
+}

@@ -89,8 +89,8 @@ func kv(c *scli.Context) {
 	}
 
 	//kv
-	store := raft.MakePersister()
-	////store := new(raft.Archive)
+	//store := raft.MakePersister()
+	store := new(raft.Archive)
 	kv := raft.NewKV(peers, connectInfo.Index, store, 1<<31)
 	delegate.Raft = kv.Raft
 
