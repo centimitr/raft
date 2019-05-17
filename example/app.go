@@ -44,6 +44,9 @@ func app(kv *raft.KV) (err error) {
 		return
 	}
 
+
+	//go run . -race
+
 	<-r.Quit
 	//r.OnRoleChange = func() {
 	//	srp.NewServer("", s.Addr())
