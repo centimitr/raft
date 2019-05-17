@@ -54,7 +54,7 @@ func (r *Raft) applyLoop() {
 			select {
 			case <-r.shutdown:
 				r.mu.Unlock()
-				r.log("shutdown: applyLoop")
+				r.log("shutdown: loop")
 				close(r.apply)
 				return
 			default:

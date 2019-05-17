@@ -12,7 +12,8 @@ type InstallSnapshotReply struct {
 	CurrentTerm Term
 }
 
-func (r *Raft) NewSnapShot(index int) {
+// after outer service perform a snapshot
+func (r *Raft) DidSnapshot(index int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	defer r.Store()
@@ -26,7 +27,7 @@ func (r *Raft) NewSnapShot(index int) {
 	r.Log.Snapshot.LastIncludedIndex = index
 	r.Log.Snapshot.LastIncludedTerm = r.Logs[0].Term
 
-	r.log("snapshot: new: %d %d", r.Log.Snapshot.LastIncludedIndex, r.Log.Snapshot.LastIncludedTerm)
+	r.log("snapshot: %d %d", r.Log.Snapshot.LastIncludedIndex, r.Log.Snapshot.LastIncludedTerm)
 }
 
 func (r *Raft) InstallSnapshot(arg *InstallSnapshotArg, reply *InstallSnapshotReply) {
@@ -74,7 +75,7 @@ func (r *Raft) InstallSnapshot(arg *InstallSnapshotArg, reply *InstallSnapshotRe
 }
 
 func (r *Raft) callSnapshot(server int) {
-	data, _ := r.store.LoadSnapshot()
+	data, _ := r.StableStore.LoadSnapshot()
 	arg := &InstallSnapshotArg{
 		Term:              r.CurrentTerm,
 		LastIncludedIndex: r.Log.Snapshot.LastIncludedIndex,

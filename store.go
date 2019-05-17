@@ -13,11 +13,11 @@ func (r *Raft) Store() {
 	_ = e.Encode(r.Log.Logs)
 	_ = e.Encode(r.Log.Snapshot.LastIncludedIndex)
 	_ = e.Encode(r.Log.Snapshot.LastIncludedTerm)
-	_ = r.store.StoreStatus(buf.Bytes())
+	_ = r.StableStore.StoreStatus(buf.Bytes())
 }
 
 func (r *Raft) Restore() {
-	data, _ := r.store.LoadStatus()
+	data, _ := r.StableStore.LoadStatus()
 	if data == nil || len(data) == 0 {
 		return
 	}

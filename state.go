@@ -32,7 +32,7 @@ type Raft struct {
 
 	peers      []Peer
 	peersCount int
-	store      Store
+	StableStore
 
 	Id          NodeIndex
 	Role        Role
@@ -72,6 +72,12 @@ func (r *Raft) IsLeader() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.Role == Leader
+}
+
+func (r *Raft) CheckLeadership(term Term) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.Role == Leader && r.CurrentTerm == term
 }
 
 func (r *Raft) becomeFollower() {

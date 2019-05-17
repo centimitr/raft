@@ -50,7 +50,7 @@ func (r *Raft) callSync(peerIndex LogEntryIndex) {
 		err := r.peers[peerIndex].Call("Raft.AppendEntries", arg, &reply)
 		if err != nil {
 			return
-		}¬¬
+		}
 		r.handleSyncReply(peerIndex, &reply)
 	}()
 }

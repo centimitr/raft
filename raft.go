@@ -6,19 +6,21 @@ import (
 	"time"
 )
 
-var ErrNotLeader = errors.New("raft: current node is not a leader")
+var (
+	ErrNotLeader = errors.New("kv: current node not a leader")
+)
 
-func NewRaft(peers []Peer, me NodeIndex, store Store, applyCh chan ApplyMsg) *Raft {
+func NewRaft(peers []Peer, me NodeIndex, store StableStore, applyCh chan ApplyMsg) *Raft {
 	r := &Raft{
 		Config: Config{
 			ElectionTimeout:  time.Millisecond * time.Duration(500+rand.Intn(100)*5),
 			HeartbeatTimeout: 50 * time.Millisecond,
 		},
-		peers:      peers,
-		peersCount: len(peers),
-		store:      store,
-		Id:         me,
-		apply:      applyCh,
+		peers:       peers,
+		peersCount:  len(peers),
+		StableStore: store,
+		Id:          me,
+		apply:       applyCh,
 	}
 	r.init()
 
@@ -40,8 +42,14 @@ func (r *Raft) Shutdown() {
 	r.commitCond.Broadcast()
 }
 
-// todo: tx
-func (r *Raft) Apply(command interface{}) (err error) {
+type ApplyReceipt struct {
+	Term  Term
+	Index LogEntryIndex
+	Err   error
+}
+
+func (r *Raft) Apply(command interface{}) (receipt ApplyReceipt) {
+	receipt.Index = -1
 	select {
 	case <-r.shutdown:
 		return
@@ -49,17 +57,21 @@ func (r *Raft) Apply(command interface{}) (err error) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 
-		if r.Role == Leader {
-			r.Log.append(r.CurrentTerm, command)
-
-			lastIndex := r.Log.lastIndex()
-			r.log("append: {%d: %v}", lastIndex, command)
-
-			r.progress.update(r.Id, lastIndex)
-			r.Store()
-		} else {
-			err = ErrNotLeader
+		if r.Role != Leader {
+			receipt.Err = ErrNotLeader
+			return
 		}
+
+		r.Log.append(r.CurrentTerm, command)
+
+		lastIndex := r.Log.lastIndex()
+		r.log("append: {%d: %v}", lastIndex, command)
+
+		receipt.Index = lastIndex
+		receipt.Term = r.CurrentTerm
+
+		r.progress.update(r.Id, lastIndex)
+		r.Store()
 	}
 	return
 }

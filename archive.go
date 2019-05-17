@@ -4,7 +4,7 @@ import (
 	"sync"
 )
 
-// simulated stable store
+// simulated stable StableStore
 type Archive struct {
 	// should replace with IO
 	data sync.Map
@@ -37,9 +37,15 @@ func (a *Archive) StoreSnapshot(data []byte) error {
 	return a.store("snapshot", data)
 }
 
-//type Store interface {
+func (a *Archive) StateSize() int {
+	state, _ := a.LoadStatus()
+	return len(state)
+}
+
+//type StableStore interface {
 //	LoadStatus() ([]byte, error)
 //	LoadSnapshot() ([]byte, error)
 //	StoreStatus([]byte) error
 //	StoreSnapshot([]byte) error
+//	StateSize() int
 //}
