@@ -24,7 +24,7 @@ type cmd struct {
 }
 
 func (kv *KV) request(typ cmdType, k, v string) (value string, err error) {
-	receipt := kv.raft.Apply(cmd{Type: typ, Key: k, Value: v})
+	receipt := kv.Raft.Apply(cmd{Type: typ, Key: k, Value: v})
 	if receipt.Err != nil {
 		err = receipt.Err
 		return
@@ -38,7 +38,7 @@ func (kv *KV) request(typ cmdType, k, v string) (value string, err error) {
 
 	select {
 	case <-notify:
-		if !kv.raft.CheckLeadership(receipt.Term) {
+		if !kv.Raft.CheckLeadership(receipt.Term) {
 			err = ErrKVNotLeader
 			return
 		}

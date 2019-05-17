@@ -2,21 +2,21 @@ package raft
 
 import (
 	"encoding/gob"
+	"math"
 	"sync"
 )
 
 type KV struct {
-	mu sync.Mutex
-
 	currentIndex NodeIndex
-	raft         *Raft
+	Raft         *Raft
 	applyCh      chan ApplyMsg
 
-	snapshotThreshold int // snapshot if log grows this big
+	m  map[string]string
+	mu sync.Mutex
 
-	store         StableStore
-	m             map[string]string
-	snapshotIndex int
+	store             StableStore
+	snapshotThreshold int
+	snapshotIndex     int
 
 	notify   map[int]chan struct{}
 	shutdown chan struct{}
@@ -30,21 +30,27 @@ func (kv *KV) Init() {
 	kv.shutdown = make(chan struct{})
 }
 
-func (kv *KV) Shutdown() {
-	close(kv.shutdown)
-	kv.raft.Shutdown()
+func (kv *KV) Run() {
+	if kv.Raft == nil {
+		panic("kv: no raft binding")
+	}
+	go kv.loop()
+	kv.Raft.Run()
 }
 
-func StartKV(peers []Peer, currentIndex NodeIndex, store StableStore, snapshotThreshold int) *KV {
+func (kv *KV) Shutdown() {
+	close(kv.shutdown)
+	kv.Raft.Shutdown()
+}
+
+func NewKV(peers []Peer, currentIndex NodeIndex, store StableStore, snapshotThreshold int) *KV {
 	kv := &KV{
 		currentIndex:      currentIndex,
-		snapshotThreshold: snapshotThreshold,
+		snapshotThreshold: int(math.MaxInt64),
 		store:             store,
 	}
 	kv.Init()
 	kv.Load()
-	kv.raft = NewRaft(peers, currentIndex, store, kv.applyCh)
-	go kv.loop()
-	kv.raft.Run()
+	kv.Raft = NewRaft(peers, currentIndex, store, kv.applyCh)
 	return kv
 }

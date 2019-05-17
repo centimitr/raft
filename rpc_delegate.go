@@ -2,7 +2,7 @@ package raft
 
 // RPCDelegate delegates Raft objects for RPC service
 type RPCDelegate struct {
-	r *Raft
+	Raft *Raft
 }
 
 func NewRPCDelegate(r *Raft) *RPCDelegate {
@@ -10,11 +10,11 @@ func NewRPCDelegate(r *Raft) *RPCDelegate {
 }
 
 func (d *RPCDelegate) AppendEntries(arg AppendEntriesArg, reply *AppendEntriesReply) error {
-	d.r.AppendEntries(&arg, reply)
+	d.Raft.AppendEntries(&arg, reply)
 	return nil
 }
 
-func (d *RPCDelegate) RequestVotes(arg RequestVoteArg, reply *RequestVoteReply) error {
-	d.r.RequestVote(&arg, reply)
+func (d *RPCDelegate) RequestVote(arg RequestVoteArg, reply *RequestVoteReply) error {
+	d.Raft.RequestVote(&arg, reply)
 	return nil
 }

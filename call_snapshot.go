@@ -102,6 +102,7 @@ func (r *Raft) callSnapshot(server int) {
 		var reply InstallSnapshotReply
 		err := r.peers[server].Call("Raft.InstallSnapshot", arg, &reply)
 		if err != nil {
+			r.log("Call: %s", err)
 			return
 		}
 		handle(server, &reply)

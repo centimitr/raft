@@ -52,8 +52,10 @@ func (r *Raft) callElection() {
 	r.forEachPeer(func(peerIndex NodeIndex) {
 		go func() {
 			var reply RequestVoteReply
-			err := r.peers[peerIndex].Call("Raft.RequestVote", arg, &reply)
+			p := r.peers[peerIndex]
+			err := p.Call("Raft.RequestVote", arg, &reply)
 			if err != nil {
+				r.log("Call: %s", err)
 				return
 			}
 			handle(&reply)

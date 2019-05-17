@@ -17,7 +17,7 @@ func (r *Raft) log(format string, v ...interface{}) {
 	//noinspection GoBoolExpressions
 	if DEBUG {
 		s := fmt.Sprintf(format, v...)
-		log.Printf("[%d-%s]: %s\n", r.Id, r, s)
+		log.Printf("[%d] %s\n", r.Id, s)
 	}
 }
 

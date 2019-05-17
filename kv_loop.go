@@ -24,11 +24,9 @@ func (kv *KV) loop() {
 			cmd := msg.Command.(cmd)
 			kv.mu.Lock()
 			switch cmd.Type {
-			case "Get":
-			case "Put":
+			case cmdGet:
+			case cmdSet:
 				kv.m[cmd.Key] = cmd.Value
-			case "Append":
-				kv.m[cmd.Key] += cmd.Value
 			default:
 				panic("kv: invalid op")
 			}
@@ -37,10 +35,10 @@ func (kv *KV) loop() {
 			if kv.needSnapshot() {
 				debug("need snapshot:", kv.snapshotThreshold, kv.store.StateSize())
 				kv.Store(msg.Index)
-				kv.raft.DidSnapshot(msg.Index)
+				kv.Raft.DidSnapshot(msg.Index)
 			}
 
-			// notify channel
+			// notify corresponding channel
 			ch, ok := kv.notify[msg.Index]
 			if ok && ch != nil {
 				close(ch)
