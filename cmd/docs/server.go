@@ -12,6 +12,7 @@ import (
 
 // newServer creates the server serve frontend clients
 func newServer(kv *raft.KV) *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(cors.Default())
 	r.Use(checkLeader(kv))

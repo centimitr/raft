@@ -25,7 +25,7 @@ func start(c *scli.Context) {
 
 	// random ID for publishing raft service
 	id := uuid.New().String()
-	log.Println("id:", id)
+	//log.Println("id:", id)
 
 	// Connectivity wraps a RPC listener
 	// RPC delegate is published to RPC registry
@@ -38,7 +38,7 @@ func start(c *scli.Context) {
 
 	// retrieve the actual RPC address
 	rpcAddr := fmt.Sprintf("%s:%d", GetLocalIP(), connectivity.Port())
-	log.Println("rpcAddr:", rpcAddr)
+	log.Println("[RPC]", rpcAddr)
 
 	// call registry to record this RPC node
 	u := &url.URL{
@@ -50,7 +50,7 @@ func start(c *scli.Context) {
 	querystring.Add("addr", rpcAddr)
 	u.RawQuery = querystring.Encode()
 
-	log.Println("GET", u.String())
+	//log.Println("GET", u.String())
 	req, err := http.NewRequest(http.MethodPut, u.String(), nil)
 	check(err)
 	_, err = http.DefaultClient.Do(req)
@@ -61,7 +61,7 @@ func start(c *scli.Context) {
 	var connectInfo raft.ConnectInfo
 	for {
 		time.Sleep(time.Second)
-		log.Println("PUT", u.String())
+		//log.Println("PUT", u.String())
 		req, err = http.NewRequest(http.MethodGet, u.String(), nil)
 		check(err)
 		resp, err := http.DefaultClient.Do(req)
@@ -73,13 +73,13 @@ func start(c *scli.Context) {
 		err = json.Unmarshal(b, &connectInfo)
 		check(err)
 		if resp.StatusCode == http.StatusServiceUnavailable {
-			log.Println("waiting:", len(connectInfo.Addrs))
+			log.Println("[Registry] Total nodes count:", len(connectInfo.Addrs))
 			continue
 		}
 		break
 	}
-	log.Printf("RECV %+v\n", connectInfo)
-	log.Println("current:", connectInfo.Addrs[connectInfo.Index])
+	log.Printf("[Registry] RECV %+v\n", connectInfo)
+	log.Printf("[Registry] Local: [%d] %s\n", connectInfo.Index, connectInfo.Addrs[connectInfo.Index])
 
 	// connect others nodes
 	peers := make([]raft.Peer, len(connectInfo.Addrs))
@@ -90,8 +90,10 @@ func start(c *scli.Context) {
 		peers[i], err = rpc.DialHTTP("tcp", addr)
 		check(err)
 	}
+	log.Println("[RPC] All peers connected")
 
 	// create kv service as a state machine for application logic
+	log.Println("[Server] Create Raft store")
 	store := new(raft.Archive)
 	kv := raft.NewKV(peers, connectInfo.Index, store, 1<<31)
 
@@ -104,6 +106,6 @@ func start(c *scli.Context) {
 	// create server and listen
 	s := newServer(kv)
 	addr := c.Get("service")
-	log.Println("running:", addr)
+	log.Println("[Server] Listen and serve on:", addr)
 	check(s.Run(addr))
 }

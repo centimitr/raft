@@ -6,13 +6,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
+	"sort"
+	"strings"
 	"sync"
 )
 
 const (
-	//CLUSTER_SIZE = 5
-	CLUSTER_SIZE = 3
-	//CLUSTER_SIZE = 1
+	//ClusterSize = 5
+	ClusterSize = 3
 )
 
 func main() {
@@ -45,21 +46,27 @@ func registry(c *scli.Context) {
 		}
 		mu.RLock()
 		size := len(m)
-		resp.Addrs = make([]string, size)
-		i := 0
-		for mid, addr := range m {
-			resp.Addrs[i] = addr
-			if mid == id {
+		currentAddr := m[id]
+		//i := 0
+		var addrs []string
+		for _, addr := range m {
+			addrs = append(addrs, addr)
+		}
+		sort.Strings(addrs)
+		for i, addr := range addrs {
+			if currentAddr == addr {
 				resp.Index = i
 			}
-			i++
 		}
+		resp.Addrs = addrs
+
 		mu.RUnlock()
-		if resp.Index == -1 || size < CLUSTER_SIZE {
+		if resp.Index == -1 || size < ClusterSize {
 			c.JSON(http.StatusServiceUnavailable, resp)
 			return
 		}
 		log.Printf("return: %s\n", id)
+		log.Printf(strings.Join(resp.Addrs, ", "))
 		c.JSON(http.StatusOK, resp)
 	})
 

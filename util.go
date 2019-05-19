@@ -21,6 +21,11 @@ func (r *Raft) log(format string, v ...interface{}) {
 	}
 }
 
+func (r *Raft) log2(format string, v ...interface{}) {
+	s := fmt.Sprintf(format, v...)
+	log.Printf("[%d] %s\n", r.Id, s)
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a

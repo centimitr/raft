@@ -39,9 +39,10 @@ func (r *Raft) callElection() {
 			return
 		}
 		if reply.VoteGranted {
-			if votes >= r.peersCount/2 {
+			if votes == r.peersCount/2 {
 				r.log("become leader")
 				r.Role = Leader
+				r.log2("Role: Leader")
 				r.resetProgress()
 				go r.heartbeatLoop()
 				return
