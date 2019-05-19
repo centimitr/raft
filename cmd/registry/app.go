@@ -64,6 +64,7 @@ func registry(c *scli.Context) {
 	})
 
 	addr := c.Get("addr")
+	log.Println("local:", GetLocalIP())
 	log.Println("running:", addr)
 	log.Fatalln(r.Run(addr))
 }

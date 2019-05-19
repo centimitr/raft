@@ -2,9 +2,11 @@ package main
 
 import "encoding/json"
 
-type DocEntry struct {
-	String string
-}
+//type DocEntry struct {
+//	String string
+//}
+
+type DocEntry = string
 
 type Doc struct {
 	Entries []DocEntry
@@ -20,7 +22,8 @@ func NewDoc(s string) *Doc {
 	_ = json.Unmarshal([]byte(s), &doc)
 	return &doc
 }
-
-func (d *Doc) Merge(d2 Doc) {
-
-}
+//
+//// todo: merge
+//func (d *Doc) Merge(d2 Doc) {
+//
+//}

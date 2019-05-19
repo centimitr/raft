@@ -37,13 +37,13 @@ func start(c *scli.Context) {
 	check(err)
 
 	// retrieve the actual RPC address
-	rpcAddr := fmt.Sprintf("localhost:%d", connectivity.Port())
+	rpcAddr := fmt.Sprintf("%s:%d", GetLocalIP(), connectivity.Port())
 	log.Println("rpcAddr:", rpcAddr)
 
 	// call registry to record this RPC node
 	u := &url.URL{
 		Scheme: "http",
-		Host:   "localhost" + c.Get("registry"),
+		Host:   c.Get("registry"),
 	}
 	querystring := u.Query()
 	querystring.Add("id", id)

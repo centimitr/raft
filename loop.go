@@ -79,16 +79,5 @@ func (r *Raft) applyLoop() {
 			r.log("apply: %v", msg)
 			r.apply <- msg
 		}
-
-		// todo: check
-		//for i := 0; i < commitIndex-lastApplied; i++ {
-		//	current command is replicated, ignore nil command
-		//reply := ApplyMsg{
-		//	Index:   lastApplied + i + 1,
-		//	Command: logs[i].Command,
-		//}
-		//logf("[%d-%s]: peer %d apply %v to client.\n", r.Id, r, r.Id, reply)
-		//r.apply <- reply
-		//}
 	}
 }

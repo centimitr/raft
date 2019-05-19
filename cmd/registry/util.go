@@ -1,20 +1,6 @@
 package main
 
-import (
-	"fmt"
-	"log"
-	"net"
-)
-
-func PortString(port int) string {
-	return fmt.Sprintf(":%d", port)
-}
-
-func check(err error) {
-	if err != nil {
-		log.Fatalln(err)
-	}
-}
+import "net"
 
 func GetLocalIP() (ip string) {
 	addrs, err := net.InterfaceAddrs()
