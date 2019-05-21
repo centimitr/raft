@@ -16,6 +16,7 @@ func (r *Raft) callElection() {
 	r.VotedFor = r.Id
 	r.CurrentTerm += 1
 	r.Role = Candidate
+	r.log2("Role: Candidate")
 
 	arg.Term = r.CurrentTerm
 	arg.CandidateID = r.Id

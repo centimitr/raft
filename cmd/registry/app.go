@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	//ClusterSize = 5
-	ClusterSize = 3
+	ClusterSize = 5
+	//ClusterSize = 3
 )
 
 func main() {

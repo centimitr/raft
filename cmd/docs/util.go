@@ -16,7 +16,7 @@ func check(err error) {
 	}
 }
 
-func GetLocalIP() (ip string) {
+func GetLocalIP() (s string) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return
@@ -24,9 +24,12 @@ func GetLocalIP() (ip string) {
 	for _, address := range addrs {
 		ipn, ok := address.(*net.IPNet)
 		if ok && ipn.IP.To4() != nil {
-			ip = ipn.IP.String()
-			if !ipn.IP.IsLoopback() {
-				return
+			ip := ipn.IP
+			if ip.IsLoopback() {
+				s = ip.String()
+			}
+			if ip.IsGlobalUnicast() {
+				return ip.String()
 			}
 		}
 	}

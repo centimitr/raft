@@ -12,7 +12,8 @@ type Term = int
 type LogEntryIndex = int
 
 const (
-	Follower Role = iota
+	_ Role = iota
+	Follower
 	Candidate
 	Leader
 )
@@ -52,6 +53,9 @@ type Raft struct {
 }
 
 func (r *Raft) becomeFollower() {
+	if r.Role != Follower {
+		r.log2("Role: Follower")
+	}
 	r.Role = Follower
 	r.VotedFor = -1
 }

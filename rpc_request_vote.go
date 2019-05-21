@@ -45,6 +45,9 @@ func (r *Raft) RequestVote(arg *RequestVoteArg, reply *RequestVoteReply) {
 	if available && atLeastAsUpdate {
 		r.log("vote for: %d", arg.CandidateID)
 		r.election.reset()
+		if r.Role != Follower {
+			r.log2("Role: Follower")
+		}
 		r.Role = Follower
 		r.VotedFor = arg.CandidateID
 		reply.VoteGranted = true

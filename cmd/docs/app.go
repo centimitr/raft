@@ -93,7 +93,7 @@ func start(c *scli.Context) {
 	log.Println("[RPC] All peers connected")
 
 	// create kv service as a state machine for application logic
-	log.Println("[Server] Create Raft store")
+	log.Println("[Server] Create Raft state machine")
 	store := new(raft.Archive)
 	kv := raft.NewKV(peers, connectInfo.Index, store, 1<<31)
 
